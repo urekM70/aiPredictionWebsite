@@ -21,6 +21,7 @@ An intelligent prediction system that leverages machine learning algorithms to f
 - Interactive visualizations with Plotly
 - REST API for integration with trading platforms
 - Docker containerization for easy deployment
+-Add celery and rabbit mq generaton queue
 
 ### Installation
 
