@@ -16,6 +16,7 @@ An intelligent prediction system that leverages machine learning algorithms to f
 ### Technical Stack
 
 - Python backend with TensorFlow and PyTorch
+- Flask web framework for the user interface
 - Data processing via pandas and NumPy
 - Interactive visualizations with Plotly
 - REST API for integration with trading platforms
@@ -24,6 +25,24 @@ An intelligent prediction system that leverages machine learning algorithms to f
 ### Getting Started
 
 Check out the [documentation](docs/getting-started.md) to install and configure the prediction system for your specific needs.
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/urekM70/aiPredictionWebsite
+cd aiPredictionWebsite
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the Flask application
+flask run
+```
 
 ### Disclaimer
 
