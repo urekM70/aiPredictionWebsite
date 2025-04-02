@@ -22,10 +22,6 @@ An intelligent prediction system that leverages machine learning algorithms to f
 - REST API for integration with trading platforms
 - Docker containerization for easy deployment
 
-### Getting Started
-
-Check out the [documentation](docs/getting-started.md) to install and configure the prediction system for your specific needs.
-
 ### Installation
 
 ```bash
