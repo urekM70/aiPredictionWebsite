@@ -1,4 +1,4 @@
-# AI Market Predictor
+# FusionPredict
 
 ## AI-Powered Trading Predictions for Crypto & Stocks
 
