@@ -56,10 +56,10 @@ Trg kriptovalut je trenutno zelo velik, vrednost vseh kriptovalut je že prek 2 
 - **Naročnine**: Ponušal bom brezplačno osnovno različico, napredne funkcije pa bodo na voljo s plačljivimi mesečnimi ali letnimi naročninami.
 - **Affiliate programi**: Lahko bom zaslužil tudi z napotitvijo uporabnikov na različne trgovinske platforme.
 
-### Stroški:
-- Razvoj sistema: 10.000€ (napredni modeli strojnega učenja, razvoj spletne aplikacije, integracija API-jev).
-- Mesečno vzdrževanje: 500€ (strežniki, podatkovne povezave, API dostop).
-- Marketing: 1.000€ mesečno (oglaševanje na spletnih platformah, SEO, promocije).
+### Stroški(target):
+- Razvoj sistema: ???€ (napredni modeli strojnega učenja, razvoj spletne aplikacije, integracija API-jev).
+- Mesečno vzdrževanje: 20€ (strežniki, podatkovne povezave, API dostop).
+- Marketing: ???€ mesečno (oglaševanje na spletnih platformah, SEO, promocije).
 
 ### Kako bom pridobil uporabnike?
 - Partnerstva z večjimi borzami in trading platformami.
