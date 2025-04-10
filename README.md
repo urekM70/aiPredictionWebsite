@@ -19,9 +19,9 @@ An intelligent prediction system that leverages machine learning algorithms to f
 - Flask web framework for the user interface
 - Data processing via pandas and NumPy
 - Interactive visualizations with Plotly
-- REST API for integration with trading platforms
+¤ REST API for integration with trading platforms
 - Docker containerization for easy deployment
--Add celery and rabbit mq generaton queue
+¤ Add celery and rabbit mq generaton queue
 
 ### Installation
 
