@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <h1 class="mt-4">{{ crypto|capitalize }} Price Graph</h1>
+        
+        <!-- Timeframe Selector -->
+        <div class="form-group">
+            <label for="timeframe">Select Timeframe:</label>
+            <select id="timeframe" class="form-control">
+                <option value="1d">1 Day</option>
+                <option value="7d">7 Days</option>
+                <option value="30d">30 Days</option>
+                <option value="90d">90 Days</option>
+                <option value="1y">1 Year</option>
+            </select>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <!-- Loading spinner that will be shown while the data is being fetched -->
+                <div id="loading-spinner" class="text-center" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading chart data...</p>
+                </div>
+
+                <canvas id="cryptoChart" width="400" height="200" style="display: none;"></canvas>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <p>Graph showing the historical price data for {{ crypto|capitalize }}. Data is fetched dynamically via API and rendered on this page.</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Function to fetch data based on selected timeframe
+        function fetchData(timeframe) {
+            // Show the spinner while loading the data
+            document.getElementById('loading-spinner').style.display = 'block';
+            document.getElementById('cryptoChart').style.display = 'none';  // Hide the chart
+
+            fetch(`/api/crypto/{{ crypto }}?timeframe=${timeframe}`)
+                .then(response => response.json())
+                .then(data => {
+                    const labels = Array.from({ length: data.data.length }, (_, i) => `Day ${i + 1}`);
+                    const values = data.data;
+                    
+                    // Hide the spinner and show the chart once data is loaded
+                    document.getElementById('loading-spinner').style.display = 'none';
+                    document.getElementById('cryptoChart').style.display = 'block';
+
+                    // Create or update the chart
+                    const ctx = document.getElementById('cryptoChart').getContext('2d');
+                    const chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels, // X-axis labels (days)
+                            datasets: [{
+                                label: `${{ crypto }} Price (USD)`, // Dataset label
+                                data: values, // Y-axis values (prices)
+                                borderColor: 'rgba(75, 192, 192, 1)', // Line color
+                                fill: false, // Do not fill the area under the line
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+
+                    // In case of error, hide the spinner
+                    document.getElementById('loading-spinner').style.display = 'none';
+                });
+        }
+
+        // Initial fetch with default timeframe
+        fetchData('1d');
+
+        // Listen for changes in the dropdown and fetch the corresponding data
+        document.getElementById('timeframe').addEventListener('change', function(event) {
+            Chart.getChart("Chart")?.destroy()
+            Chart.getChart("cryptoChart")?.destroy()
+            const selectedTimeframe = event.target.value;
+            fetchData(selectedTimeframe);
+        });
+    </script>
+{% endblock %}

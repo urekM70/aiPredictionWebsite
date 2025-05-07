@@ -1,13 +1,14 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, jsonify
+import requests
 from flask_bcrypt import Bcrypt
 import sqlite3
 import os
 from functools import wraps
-
+cryptos = ['bitcoin', 'ethereum', 'solana', 'cardano', 'ripple']
 app = Flask(__name__)
 
 # Set up secret key for session management
-app.secret_key = os.urandom(24)
+app.secret_key = "aaaaaaaaaaaaaaaaaaaaaa"
 
 # Initialize Bcrypt
 bcrypt = Bcrypt(app)
@@ -38,15 +39,67 @@ def init_db():
     conn.close()
 
 
+COINGECKO_API_URL = "https://api.coingecko.com/api/v3/coins"
+
+    
 def login_required(f):
     @wraps(f)
-    def decorated_function():
+    def decorated_function(*args, **kwargs):
         if 'username' not in session:
             flash('Please login to access this page', 'danger')
             return redirect(url_for('login'))
-        return f()
+        return f(*args, **kwargs)  # Forward the arguments to the original function
     return decorated_function
 
+
+
+
+import requests
+
+@app.route('/api/crypto/<crypto_name>')
+@login_required
+def crypto_api(crypto_name):
+    timeframe = request.args.get('timeframe', '90d')  # Default to 90 days if no timeframe is specified
+    print(f"Fetching data for {crypto_name} with timeframe: {timeframe}")
+    
+    # Example API URL to fetch historical data
+    url = f"https://api.coingecko.com/api/v3/coins/{crypto_name}/market_chart"
+    params = {
+        'vs_currency': 'usd',
+        'days': timeframe,
+    }
+    
+    try:
+        # Send request to the API
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        # Extract the prices (this will depend on the API response structure)
+        prices = data['prices']
+        price_data = [price[1] for price in prices]  # Extract price from timestamp/price pair
+        
+        return jsonify({'data': price_data})
+    
+    except Exception as e:
+        print(f"Error fetching data: {e}")
+        return jsonify({'error': 'Unable to fetch data'}), 500
+
+
+@app.route('/graphs/<crypto_name>')
+@login_required
+def crypto_graph(crypto_name):
+    print(f"Requested graph for: {crypto_name}")  # Debugging print
+    if crypto_name not in cryptos:
+        abort(404)
+    return render_template('graph.html', crypto=crypto_name)
+
+
+# Route for listing all available graphs
+@app.route('/graphs')
+@login_required
+def graphs():
+    cryptocurrencies =  cryptos
+    return render_template('graphs.html', cryptos=cryptocurrencies)
 
 @app.route('/')
 def index():

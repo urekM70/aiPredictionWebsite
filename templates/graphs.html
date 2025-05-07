@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="list-group">
+        {% for crypto in cryptos %}
+            <a href="{{ url_for('crypto_graph', crypto_name=crypto) }}" class="list-group-item list-group-item-action">
+                {{ crypto|capitalize }} Graph
+            </a>
+        {% endfor %}
+    </div>
+{% endblock %}
