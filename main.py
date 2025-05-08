@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, jsonify
 import requests
 from flask_bcrypt import Bcrypt
+from flask_caching import Cache
 import sqlite3
 import os
 from functools import wraps
-cryptos = ['bitcoin', 'ethereum', 'solana', 'cardano', 'ripple']
+cryptos = ['bitcoin', 'ethereum', 'solana', 'cardano', 'ripple', 'dogecoin', 'polkadot', 'litecoin', 'chainlink', 'uniswap']
 app = Flask(__name__)
 
 # Set up secret key for session management
@@ -15,6 +16,11 @@ bcrypt = Bcrypt(app)
 
 # Database file path
 DATABASE = 'db.sqlite'
+
+cache = Cache(app, config={
+    'CACHE_TYPE': 'simple',       # in-memory cache
+    'CACHE_DEFAULT_TIMEOUT': 300  # 5 minutes
+})
 
 
 # Helper function to get the database connection
@@ -39,7 +45,6 @@ def init_db():
     conn.close()
 
 
-COINGECKO_API_URL = "https://api.coingecko.com/api/v3/coins"
 
     
 def login_required(f):
@@ -54,36 +59,42 @@ def login_required(f):
 
 
 
-import requests
 
-@app.route('/api/crypto/<crypto_name>')
+
+
+@app.route('/api/binance/ohlcv/<symbol>')
+@cache.cached(timeout=300, query_string=True)
 @login_required
-def crypto_api(crypto_name):
-    timeframe = request.args.get('timeframe', '90d')  # Default to 90 days if no timeframe is specified
-    print(f"Fetching data for {crypto_name} with timeframe: {timeframe}")
-    
-    # Example API URL to fetch historical data
-    url = f"https://api.coingecko.com/api/v3/coins/{crypto_name}/market_chart"
-    params = {
-        'vs_currency': 'usd',
-        'days': timeframe,
-    }
-    
-    try:
-        # Send request to the API
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        # Extract the prices (this will depend on the API response structure)
-        prices = data['prices']
-        price_data = [price[1] for price in prices]  # Extract price from timestamp/price pair
-        
-        return jsonify({'data': price_data})
-    
-    except Exception as e:
-        print(f"Error fetching data: {e}")
-        return jsonify({'error': 'Unable to fetch data'}), 500
+def binance_ohlcv(symbol):
+    interval = request.args.get('interval','1d')
+    limit    = int(request.args.get('limit',1000))
 
+    url = 'https://api.binance.com/api/v3/klines'
+    params = {'symbol': symbol.upper(), 'interval': interval, 'limit': limit}
+    resp = requests.get(url, params=params, timeout=5)
+
+    if resp.status_code != 200:
+        return jsonify({'error': resp.json().get('msg','Binance error')}), resp.status_code
+
+    data = resp.json()
+    if not isinstance(data,list):
+        return jsonify({'error':'Unexpected response format'}),400
+
+    times   = [item[0] for item in data]
+    opens   = [float(item[1]) for item in data]
+    highs   = [float(item[2]) for item in data]
+    lows    = [float(item[3]) for item in data]
+    closes  = [float(item[4]) for item in data]
+    volumes = [float(item[5]) for item in data]
+
+    return jsonify({
+        'timestamps': times,
+        'open': opens,
+        'high': highs,
+        'low': lows,
+        'close': closes,
+        'volume': volumes
+    })
 
 @app.route('/graphs/<crypto_name>')
 @login_required
@@ -187,6 +198,6 @@ if __name__ == '__main__':
                        ('admin', hashed_password, 'Admin User'))
         conn.commit()
 
-    conn.close()
+    conn.close() 
 
     app.run(debug=True)

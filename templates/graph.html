@@ -1,98 +1,301 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="container">
-        <h1 class="mt-4">{{ crypto|capitalize }} Price Graph</h1>
-        
-        <!-- Timeframe Selector -->
-        <div class="form-group">
-            <label for="timeframe">Select Timeframe:</label>
-            <select id="timeframe" class="form-control">
-                <option value="1d">1 Day</option>
-                <option value="7d">7 Days</option>
-                <option value="30d">30 Days</option>
-                <option value="90d">90 Days</option>
-                <option value="1y">1 Year</option>
-            </select>
-        </div>
-        
-        <div class="row">
-            <div class="col-md-8 offset-md-2">
-                <!-- Loading spinner that will be shown while the data is being fetched -->
-                <div id="loading-spinner" class="text-center" style="display: none;">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p>Loading chart data...</p>
-                </div>
 
-                <canvas id="cryptoChart" width="400" height="200" style="display: none;"></canvas>
-            </div>
-        </div>
-        
-        <div class="mt-4">
-            <p>Graph showing the historical price data for {{ crypto|capitalize }}. Data is fetched dynamically via API and rendered on this page.</p>
-        </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ crypto|capitalize }} Price Charts</title>
+  <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #1e1e2f;
+      color: #eee;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 50px;
+      padding: 0 20px;
+      background: #141422;
+      border-bottom: 1px solid #2a2a3d;
+      flex-shrink: 0;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 500;
+    }
+    .controls > select {
+      background: #2a2a3d;
+      color: #eee;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      margin-left: 10px;
+      font-size: 0.9rem;
+    }
+    #advancedChart, #simpleChart {
+      flex: 1;
+      position: relative;
+      height: 60vh
+    }
+    #simpleChart {
+      display: none;
+      height: 60vh;
+      flex:1;
+    }
+    /* Hide any residual Plotly range slider */
+    #advancedChart .rangeslider-container,
+    #advancedChart .rangeslider {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{ crypto|upper }}/USDT</h1>
+    <div class="controls">
+      <label>
+        Mode:
+        <select id="chartType">
+          <option value="simple">Simple</option>
+          <option value="advanced" selected>Advanced</option>
+        </select>
+      </label>
+      <label id="simpleControls" style="display:none;">
+        Range:
+        <select id="simpleTf">
+          <option value="1d">1 Day</option>
+          <option value="5d">5 Days</option>
+          <option value="1m">1 Month</option>
+          <option value="3m">3 Months</option>
+          <option value="6m">6 Months</option>
+          <option value="1y">1 Year</option>
+          <option value="5y">5 Years</option>
+          <option value="all">All</option>
+        </select>
+      </label>
+      <label id="advControls">
+        Interval:
+        <select id="advInterval">
+          <option value="1m">1m</option>
+          <option value="5m">5m</option>
+          <option value="15m">15m</option>
+          <option value="1h">1h</option>
+          <option value="4h">4h</option>
+          <option value="1d" selected>1d</option>
+          <option value="1w">1w</option>
+          <option value="1M">1M</option>
+        </select>
+      </label>
     </div>
+  </header>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        // Function to fetch data based on selected timeframe
-        function fetchData(timeframe) {
-            // Show the spinner while loading the data
-            document.getElementById('loading-spinner').style.display = 'block';
-            document.getElementById('cryptoChart').style.display = 'none';  // Hide the chart
+  <div id="advancedChart"></div>
+  <div id="simpleChart"></div>
 
-            fetch(`/api/crypto/{{ crypto }}?timeframe=${timeframe}`)
-                .then(response => response.json())
-                .then(data => {
-                    const labels = Array.from({ length: data.data.length }, (_, i) => `Day ${i + 1}`);
-                    const values = data.data;
-                    
-                    // Hide the spinner and show the chart once data is loaded
-                    document.getElementById('loading-spinner').style.display = 'none';
-                    document.getElementById('cryptoChart').style.display = 'block';
+  <script>
+    const symbolMap = { bitcoin: 'BTCUSDT', ethereum: 'ETHUSDT', solana: 'SOLUSDT', cardano: 'ADAUSDT', ripple: 'XRPUSDT' };
+    const symbol = symbolMap['{{ crypto }}'];
 
-                    // Create or update the chart
-                    const ctx = document.getElementById('cryptoChart').getContext('2d');
-                    const chart = new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: labels, // X-axis labels (days)
-                            datasets: [{
-                                label: `${{ crypto }} Price (USD)`, // Dataset label
-                                data: values, // Y-axis values (prices)
-                                borderColor: 'rgba(75, 192, 192, 1)', // Line color
-                                fill: false, // Do not fill the area under the line
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            scales: {
-                                y: {
-                                    beginAtZero: true
-                                }
-                            }
-                        }
-                    });
-                })
-                .catch(error => {
-                    console.error('Error fetching data:', error);
+    const chartTypeEl = document.getElementById('chartType');
+    const simpleTfEl = document.getElementById('simpleTf');
+    const advIntEl = document.getElementById('advInterval');
+    const simpleControls = document.getElementById('simpleControls');
+    const advControls = document.getElementById('advControls');
+    const simpleDiv = document.getElementById('simpleChart');
+    const advDiv = document.getElementById('advancedChart');
 
-                    // In case of error, hide the spinner
-                    document.getElementById('loading-spinner').style.display = 'none';
-                });
+    async function fetchKlines(interval, limit) {
+      const res = await fetch(`/api/binance/ohlcv/${symbol}?interval=${interval}&limit=${limit}`);
+      const json = await res.json();
+      if (json.error) { console.error('API:', json.error); return null; }
+      return json;
+    }
+
+    function calcSMA(arr, p = 20) {
+      return arr.map((_, i, a) => i < p ? null : a.slice(i - p, i).reduce((s, v) => s + v, 0) / p);
+    }
+    function calcEMA(arr, p = 50) {
+      const k = 2 / (p + 1), ema = [];
+      arr.forEach((v, i) => {
+        if (i < p) ema.push(null);
+        else if (i === p) ema.push(arr.slice(0, p).reduce((a, b) => a + b) / p);
+        else ema.push(v * k + ema[i - 1] * (1 - k));
+      });
+      return ema;
+    }
+
+    function drawAdvanced(data) {
+  Plotly.purge(advDiv);
+  const dates = data.timestamps.map(t => new Date(t));
+  const sma20 = calcSMA(data.close, 20);
+  const ema50 = calcEMA(data.close, 50);
+
+  const traces = [
+    {
+      x: dates,
+      open: data.open,
+      high: data.high,
+      low: data.low,
+      close: data.close,
+      type: 'candlestick',
+      increasing: { line: { color: '#4caf50' } },
+      decreasing: { line: { color: '#f44336' } },
+      hovertemplate:
+        'Time: %{x|%Y-%m-%d %H:%M:%S}<br>O: $%{open:.2f}<br>H: $%{high:.2f}<br>L: $%{low:.2f}<br>C: $%{close:.2f}<extra></extra>'
+    },
+    {
+      x: dates,
+      y: sma20,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'SMA20',
+      line: { dash: 'dash', width: 1.5 },
+      hovertemplate:
+        'Time: %{x|%Y-%m-%d %H:%M:%S}<br>SMA: $%{y:.2f}<extra></extra>'
+    },
+    {
+      x: dates,
+      y: ema50,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'EMA50',
+      line: { dash: 'dot', width: 1.5 },
+      hovertemplate:
+        'Time: %{x|%Y-%m-%d %H:%M:%S}<br>EMA: $%{y:.2f}<extra></extra>'
+    },
+    {
+      x: dates,
+      y: data.volume,
+      type: 'bar',
+      name: 'Volume',
+      yaxis: 'y2',
+      marker: { color: '#888' },
+      opacity: 0.4,
+      hovertemplate:
+        'Time: %{x|%Y-%m-%d %H:%M:%S}<br>Vol: %{y}<extra></extra>'
+    }
+  ];
+
+  // Adjust tickformat for long-term intervals
+  const selectedInterval = advIntEl.value;
+  const longRange = ['1d', '1w', '1M'].includes(selectedInterval);
+  const tickFmt = longRange ? '%Y' : '%b %d';
+
+  const layout = {
+    autosize: true,
+    template: 'plotly_dark',
+    dragmode: 'pan',
+    hovermode: 'x unified',
+    margin: { t: 40, l: 50, r: 40, b: 40 },
+    xaxis: {
+      rangeslider: { visible: true },
+      tickformat: tickFmt,
+      hoverformat: '%Y-%m-%d %H:%M:%S'
+    },
+    yaxis: {
+      domain: [0.25, 1],
+      title: 'Price (USD)',
+      tickprefix: '$'
+    },
+    yaxis2: {
+      domain: [0, 0.2],
+      title: 'Volume',
+      overlaying: 'y',
+      side: 'right'
+    },
+    legend: {
+      orientation: 'h',
+      x: 0.5,
+      xanchor: 'center',
+      y: 1.02
+    }
+  };
+
+  Plotly.newPlot(advDiv, traces, layout, { responsive: true });
+}
+
+
+function drawSimple(data) {
+  Plotly.purge(simpleDiv);
+  const dates = data.timestamps.map(t => new Date(t));
+  const trace = {
+    x: dates,
+    y: data.close,
+    type: 'scatter',
+    mode: 'lines',
+    name: 'Close',
+    hovertemplate: `Time: %{x|%Y-%m-%d}<br>Close: $%{y:.2f}<extra></extra>`
+  };
+
+  // Use year format for long-range charts
+  let tickFmt = '%b %d';
+  if (['1y', '5y', 'all'].includes(simpleTfEl.value)) {
+    tickFmt = '%Y';
+  }
+
+  const layout = {
+    autosize: true,
+    template: 'plotly_dark',
+    margin: { t: 20, l: 50, r: 20, b: 40 },
+    xaxis: {
+      tickformat: tickFmt,
+      hoverformat: '%Y-%m-%d'
+    },
+    yaxis: {
+      title: 'Price (USD)',
+      tickprefix: '$'
+    }
+  };
+
+  Plotly.newPlot(simpleDiv, [trace], layout, { responsive: true });
+}
+
+    async function update() {
+      const mode = chartTypeEl.value;
+      if (mode === 'advanced') {
+        simpleDiv.style.display = 'none'; advDiv.style.display = 'block'; simpleControls.style.display = 'none'; advControls.style.display = 'inline-block';
+        const interval = advIntEl.value; const limit = 500;
+        const data = await fetchKlines(interval, limit);
+        if (data) drawAdvanced(data);
+      } else {
+        advDiv.style.display = 'none'; simpleDiv.style.display = 'block'; advControls.style.display = 'none'; simpleControls.style.display = 'inline-block';
+        const tf = simpleTfEl.value; let interval, limit;
+        switch (tf) {
+          case '1d': interval = '1h'; limit = 24; break;
+          case '5d': interval = '1h'; limit = 120; break;
+          case '1m': interval = '1d'; limit = 30; break;
+          case '3m': interval = '1d'; limit = 90; break;
+          case '6m': interval = '1d'; limit = 180; break;
+          case '1y': interval = '1d'; limit = 365; break;
+          case '5y': interval = '1d'; limit = 1825; break;
+          case 'all': interval = '1d'; limit = 10000; break;
+          default: interval = '1d'; limit = 1000;
         }
+        const data = await fetchKlines(interval, limit);
+        if (data) drawSimple(data);
+      }
+    }
 
-        // Initial fetch with default timeframe
-        fetchData('1d');
+    chartTypeEl.addEventListener('change', update);
+    advIntEl.addEventListener('change', update);
+    simpleTfEl.addEventListener('change', update);
+    update();
+  </script>
+</body>
+</html>
 
-        // Listen for changes in the dropdown and fetch the corresponding data
-        document.getElementById('timeframe').addEventListener('change', function(event) {
-            Chart.getChart("Chart")?.destroy()
-            Chart.getChart("cryptoChart")?.destroy()
-            const selectedTimeframe = event.target.value;
-            fetchData(selectedTimeframe);
-        });
-    </script>
+
+
 {% endblock %}
