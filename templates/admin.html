@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Admin Panel</h2>
+
+    <div class="row">
+        <!-- Users -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">Users</div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for user in users %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ user.username }}
+                            {% if not user.is_admin %}
+                            <form method="POST" action="{{ url_for('delete_user', username=user.username) }}">
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                            </form>
+                            {% else %}
+                            <span class="badge bg-secondary">Admin</span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Blog Posts -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">Recent Blog Posts</div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for post in blog_posts %}
+                        <li class="list-group-item">
+                            <strong>{{ post.title }}</strong> by {{ post.username }}<br>
+                            <form method="POST" action="{{ url_for('delete_blog', post_id=post.id) }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger mt-1">Delete</button>
+                            </form>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Management -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">Chat Messages</div>
+                <div class="card-body text-center">
+                    <form method="POST" action="{{ url_for('clear_chat') }}">
+                        <button type="submit" class="btn btn-danger">Clear All Chat Messages</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

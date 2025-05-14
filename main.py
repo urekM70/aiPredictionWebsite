@@ -5,11 +5,18 @@ from flask_caching import Cache
 import sqlite3
 import os
 from functools import wraps
+from werkzeug.utils import secure_filename
+
+from werkzeug.exceptions import RequestEntityTooLarge
+
 cryptos = ['bitcoin', 'ethereum', 'solana', 'cardano', 'ripple', 'dogecoin', 'polkadot', 'litecoin', 'chainlink', 'uniswap']
 app = Flask(__name__)
 
 # Set up secret key for session management
 app.secret_key = "aaaaaaaaaaaaaaaaaaaaaa"
+
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2 MB max
+
 
 # Initialize Bcrypt
 bcrypt = Bcrypt(app)
@@ -40,12 +47,50 @@ def init_db():
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         username TEXT UNIQUE NOT NULL,
                         password TEXT NOT NULL,
-                        display_name TEXT NOT NULL)''')
+                        display_name TEXT NOT NULL,
+                        is_admin INTEGER DEFAULT 0
+)''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS blog_posts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+
+    cursor.execute('''CREATE TABLE IF NOT EXISTS chat_messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+
     conn.commit()
     conn.close()
 
+@app.errorhandler(RequestEntityTooLarge)
+def handle_file_too_large(e):
+    flash('File is too large. Max size is 2MB.', 'danger')
+    return redirect(request.referrer or url_for('index'))
 
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'username' not in session:
+            flash('Login required.', 'danger')
+            return redirect(url_for('login'))
 
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute('SELECT is_admin FROM users WHERE username = ?', (session['username'],))
+        row = cur.fetchone()
+        conn.close()
+
+        if not row or row['is_admin'] != 1:
+            flash('Admin access only.', 'danger')
+            return redirect(url_for('dashboard'))
+
+        return f(*args, **kwargs)
+    return decorated
     
 def login_required(f):
     @wraps(f)
@@ -56,10 +101,52 @@ def login_required(f):
         return f(*args, **kwargs)  # Forward the arguments to the original function
     return decorated_function
 
+UPLOAD_FOLDER = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Helper function
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/profile/<username>')
+@login_required
+def view_profile(username):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT username, display_name, bio, email, profile_pic FROM users WHERE username = ?', (username,))
+    user = cursor.fetchone()
+    conn.close()
+
+    if user is None:
+        abort(404)
+
+    return render_template('profile.html', user=dict(user))
 
 
+@app.route('/profile/edit', methods=['GET', 'POST'])
+@login_required
+def edit_profile():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        bio = request.form.get('bio', '').strip()
 
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute('UPDATE users SET email = ?, bio = ? WHERE username = ?', (email, bio, session['username']))
+        conn.commit()
+        conn.close()
+        flash('Profile updated!', 'success')
+        return redirect(url_for('view_profile', username=session['username']))
 
+    # Preload data
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute('SELECT email, bio FROM users WHERE username = ?', (session['username'],))
+    user = cur.fetchone()
+    conn.close()
+
+    return render_template('edit_profile.html', user=user)
 
 
 @app.route('/api/binance/ohlcv/<symbol>')
@@ -103,6 +190,140 @@ def crypto_graph(crypto_name):
     if crypto_name not in cryptos:
         abort(404)
     return render_template('graph.html', crypto=crypto_name)
+
+@app.route('/community')
+@login_required
+def community():
+    return render_template('community.html')
+
+@app.route('/api/chat/delete/<int:msg_id>', methods=['POST'])
+@login_required
+def delete_chat_message(msg_id):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute('SELECT username FROM chat_messages WHERE id = ?', (msg_id,))
+    row = cur.fetchone()
+
+    if not row:
+        return jsonify({'error': 'Message not found'}), 404
+
+    if session['username'] != row['username'] and session['username'] != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    cur.execute('DELETE FROM chat_messages WHERE id = ?', (msg_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/api/blog/delete/<int:post_id>', methods=['POST'])
+@login_required
+def delete_blog_post(post_id):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute('SELECT username FROM blog_posts WHERE id = ?', (post_id,))
+    row = cur.fetchone()
+
+    if not row:
+        return jsonify({'error': 'Post not found'}), 404
+
+    if session['username'] != row['username'] and session['username'] != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    cur.execute('DELETE FROM blog_posts WHERE id = ?', (post_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+
+# --- Blog API ---
+@app.route('/api/blog/new', methods=['POST'])
+@login_required
+def new_blog_post():
+    data = request.get_json()
+    title = data.get('title', '').strip()
+    content = data.get('content', '').strip()
+    if not title or not content:
+        return jsonify({'error': 'Title and content required'}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO blog_posts (username, title, content) VALUES (?, ?, ?)',
+                   (session['username'], title, content))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/profile/upload_pic', methods=['POST'])
+@login_required
+def upload_profile_pic():
+    if 'profile_pic' not in request.files:
+        flash('No file part', 'danger')
+        return redirect(url_for('view_profile', username=session['username']))
+
+    file = request.files['profile_pic']
+    if file.filename == '':
+        flash('No selected file', 'danger')
+        return redirect(url_for('view_profile', username=session['username']))
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(session['username'] + '_pic.' + file.filename.rsplit('.', 1)[1].lower())
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        # Shrani v bazo
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute('UPDATE users SET profile_pic = ? WHERE username = ?', (filename, session['username']))
+        conn.commit()
+        conn.close()
+
+        flash('Profile picture updated.', 'success')
+
+    return redirect(url_for('view_profile', username=session['username']))
+
+
+@app.route('/api/blog/posts')
+@login_required
+def get_blog_posts():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, username, title, content, timestamp FROM blog_posts ORDER BY timestamp DESC LIMIT 20')
+    posts = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(posts)
+
+
+
+# --- Chat API ---
+@app.route('/api/chat/send', methods=['POST'])
+@login_required
+def send_chat_message():
+    data = request.get_json()
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Message cannot be empty'}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO chat_messages (username, message) VALUES (?, ?)',
+                   (session['username'], message))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/chat/messages')
+@login_required
+def get_chat_messages():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, username, message, timestamp FROM chat_messages ORDER BY timestamp DESC LIMIT 50')
+    messages = [dict(row) for row in cursor.fetchall()][::-1]
+    conn.close()
+    return jsonify(messages)
+
+
 
 
 # Route for listing all available graphs
@@ -174,6 +395,53 @@ def register():
 def dashboard():
     return render_template('dashboard.html')
 
+@app.route('/admin/delete_user/<username>', methods=['POST'])
+@admin_required
+def delete_user(username):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM users WHERE username = ?', (username,))
+    conn.commit()
+    conn.close()
+    flash(f'User {username} deleted.', 'success')
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/clear_chat', methods=['POST'])
+@admin_required
+def clear_chat():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM chat_messages')
+    conn.commit()
+    conn.close()
+    flash('Chat cleared.', 'success')
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/delete_blog/<int:post_id>', methods=['POST'])
+@admin_required
+def delete_blog(post_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM blog_posts WHERE id = ?', (post_id,))
+    conn.commit()
+    conn.close()
+    flash(f'Blog post {post_id} deleted.', 'success')
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin_panel',methods=['GET'])
+@admin_required
+def admin_panel():
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT username, is_admin FROM users ORDER BY username')
+    users = [dict(row) for row in cursor.fetchall()]
+
+    cursor.execute('SELECT id, username, title FROM blog_posts ORDER BY timestamp DESC LIMIT 10')
+    blog_posts = [dict(row) for row in cursor.fetchall()]
+
+    conn.close()
+    return render_template('admin.html',users=users, blog_posts=blog_posts)
 
 @app.route('/logout')
 def logout():
@@ -181,6 +449,22 @@ def logout():
     session.pop('display_name', None)
     flash('You have been logged out', 'info')
     return redirect(url_for('login'))
+
+
+def migrate_add_profile_fields():
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
+        cur.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
+        cur.execute("ALTER TABLE users ADD COLUMN profile_pic TEXT DEFAULT 'default.png'")
+        print("Dodan bio, email in profilna slika.")
+    except sqlite3.OperationalError as e:
+        print("Morda stolpci že obstajajo:", e)
+    conn.commit()
+    conn.close()
+
+
 
 
 if __name__ == '__main__':
@@ -191,11 +475,12 @@ if __name__ == '__main__':
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM users WHERE username = ?', ('admin',))
     admin = cursor.fetchone()
+    migrate_add_profile_fields()
 
     if not admin:
         hashed_password = bcrypt.generate_password_hash('admin123').decode('utf-8')
-        cursor.execute('INSERT INTO users (username, password, display_name) VALUES (?, ?, ?)',
-                       ('admin', hashed_password, 'Admin User'))
+        cursor.execute('INSERT INTO users (username, password, display_name,is_admin) VALUES (?, ?, ?,?)',
+                       ('admin', hashed_password, 'Admin User',1))
         conn.commit()
 
     conn.close() 

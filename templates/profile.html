@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-4 text-center">
+            <img src="{{ url_for('static', filename='uploads/' ~ user.profile_pic) }}" alt="Profile Picture" class="img-thumbnail rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+
+            {% if session['username'] == user.username %}
+            <form action="{{ url_for('upload_profile_pic') }}" method="POST" enctype="multipart/form-data">
+                <input type="file" name="profile_pic" accept="image/*" class="form-control mb-2" required
+       onchange="if(this.files[0].size > 2097152){ alert('File too large x3 Max 2MB!!!!!'); this.value=''; }">
+                <button type="submit" class="btn btn-sm btn-primary">Upload Picture</button>
+            </form>
+            
+            {% endif %}
+        </div>
+
+        <div class="col-md-8">
+            <h3>{{ user.display_name }} <small class="text-muted">(@{{ user.username }})</small></h3>
+            {% if user.email %}
+            <p><strong>Email:</strong> {{ user.email }}</p>
+            {% endif %}
+            {% if user.bio %}
+            <p><strong>Bio:</strong> {{ user.bio }}</p>
+            {% else %}
+            <p class="text-muted">No bio yet.</p>
+            {% endif %}
+
+            {% if session['username'] == user.username %}
+            <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-secondary btn-sm">Edit Profile</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
