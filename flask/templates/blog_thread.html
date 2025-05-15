@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card mb-4">
+        <div class="card-body">
+            <h3>{{ post.title }}</h3>
+            <small>by <a href="/profile/{{ post.username }}">{{ post.username }}</a> | {{ post.timestamp }}</small>
+            <hr>
+            <p>{{ post.content }}</p>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">Comments</div>
+        <div class="card-body">
+            {% for comment in comments %}
+               <div class="mb-3 border rounded p-2 d-flex justify-content-between align-items-start">
+    <div>
+        <small><a href="/profile/{{ comment.username }}">{{ comment.username }}</a> | {{ comment.timestamp }}</small>
+        <p class="mb-1">{{ comment.content }}</p>
+    </div>
+    {% if comment.username == session['username'] or session['username'] == 'admin' %}
+    <button class="btn btn-sm text-danger" data-id="{{ comment.id }}" onclick="deleteComment(this.dataset.id)">🗑</button>
+    {% endif %}
+</div>
+
+            {% endfor %}
+
+            <form method="POST">
+                <textarea name="content" rows="3" class="form-control" placeholder="Write a comment..." required></textarea>
+                <button type="submit" class="btn btn-primary btn-sm mt-2">Post Comment</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function deleteComment(id) {
+    if (confirm("Do you really want to delete this comment?")) {
+        fetch(`/api/comment/delete/${id}`, { method: 'POST' })
+            .then(res => {
+                if (res.ok) location.reload();
+                else alert("Failed to delete comment.");
+            });
+    }
+}
+</script>
+
+{% endblock %}

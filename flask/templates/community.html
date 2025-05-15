@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Chat Section -->
+<div class="col-md-12">
+    <div class="card mb-4">
+        <div class="card-header">Global Chat</div>
+        <div class="card-body">
+            <div id="chatBox" style="height: 300px; overflow-y: scroll; background: #f8f9fa; padding: 10px; border: 1px solid #ddd;"></div>
+            <form id="chatForm" class="mt-3">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="chatMessage" placeholder="Enter your message..." required>
+                    <button class="btn btn-primary" type="submit">Send</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Blog Section -->
+<div class="col-md-12">
+    <div class="card mb-4">
+        <div class="card-header">Blog</div>
+        <div class="card-body">
+            <form id="blogForm">
+                <input type="text" class="form-control mb-2" id="blogTitle" placeholder="Title" required>
+                <textarea class="form-control mb-2" id="blogContent" rows="3" placeholder="Content" required></textarea>
+                <button type="submit" class="btn btn-primary btn-sm">Post</button>
+            </form>
+            <hr>
+            <div id="blogPosts"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const currentUser = '{{ session["username"] }}';
+
+// Load Blog Posts
+async function loadBlogPosts() {
+    const res = await fetch("/api/blog/posts");
+    const posts = await res.json();
+    const blogContainer = document.getElementById("blogPosts");
+
+    blogContainer.innerHTML = posts.map(post => {
+        const canDelete = (post.username === currentUser || currentUser === 'admin');
+        return `
+        <div class="mb-3 border rounded p-3">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <a href="/blog/${post.id}" class="text-decoration-none text-dark">
+                        <h5>${post.title}</h5>
+                    </a>
+                    <small>
+                        by <a href="/profile/${post.username}">${post.username}</a> | 
+                        ${new Date(post.timestamp).toLocaleString()}
+                    </small>
+                    <p class="mt-2">
+                ${post.content.length > 200 ? post.content.slice(0, 200) + '...' : post.content}
+            </p>
+            <small class="text-muted">${post.comment_count} comment${post.comment_count === 1 ? '' : 's'}</small>
+
+                </div>
+                ${canDelete ? `<button onclick="confirmDeleteBlog(${post.id})" class="btn btn-sm text-danger">🗑️</button>` : ''}
+            </div>
+        </div>`;
+    }).join("");
+}
+
+// Blog Posting
+document.getElementById("blogForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const title = document.getElementById("blogTitle").value.trim();
+    const content = document.getElementById("blogContent").value.trim();
+    if (!title || !content) return;
+
+    const res = await fetch("/api/blog/new", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content })
+    });
+
+    if (res.ok) {
+        document.getElementById("blogForm").reset();
+        loadBlogPosts();
+    }
+});
+
+// Delete Blog
+async function confirmDeleteBlog(id) {
+    if (confirm("Do you really want to delete this blog post?")) {
+        const res = await fetch(`/api/blog/delete/${id}`, { method: "POST" });
+        if (res.ok) loadBlogPosts();
+        else alert("Failed to delete blog post.");
+    }
+}
+
+// Chat
+async function loadChat() {
+    const res = await fetch("/api/chat/messages");
+    const messages = await res.json();
+    const chatBox = document.getElementById("chatBox");
+
+    chatBox.innerHTML = messages.map(msg => {
+        const deletable = (msg.username === currentUser || currentUser === 'admin');
+        return `
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <a href="/profile/${msg.username}"><strong>${msg.username}</strong></a>: ${msg.message}
+            </div>
+            ${deletable ? `<button onclick="confirmDeleteChat(${msg.id})" class="btn btn-sm text-danger">🗑️</button>` : ''}
+        </div>`;
+    }).join("");
+
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function confirmDeleteChat(id) {
+    if (confirm("Do you really want to delete this message?")) {
+        const res = await fetch(`/api/chat/delete/${id}`, { method: "POST" });
+        if (res.ok) loadChat();
+    }
+}
+
+document.getElementById("chatForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const message = document.getElementById("chatMessage").value;
+    const res = await fetch("/api/chat/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message })
+    });
+    if (res.ok) {
+        document.getElementById("chatForm").reset();
+        loadChat();
+    }
+});
+
+setInterval(loadChat, 3000);
+loadChat();
+loadBlogPosts();
+</script>
+{% endblock %}

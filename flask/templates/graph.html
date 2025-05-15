@@ -7,7 +7,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>{{ crypto|capitalize }} Price Charts</title>
-  <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script></script>
+  <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
   <style>
     html, body {
       height: 100%;
@@ -47,14 +47,11 @@
     #advancedChart, #simpleChart {
       flex: 1;
       position: relative;
-      height: 60vh
+      height: 60vh;
     }
     #simpleChart {
       display: none;
-      height: 60vh;
-      flex:1;
     }
-    /* Hide any residual Plotly range slider */
     #advancedChart .rangeslider-container,
     #advancedChart .rangeslider {
       display: none !important;
@@ -63,7 +60,7 @@
 </head>
 <body>
   <header>
-    <h1>{{ crypto|upper }}/USDT</h1>
+    <h1>{{ crypto|upper }}</h1>
     <div class="controls">
       <label>
         Mode:
@@ -105,8 +102,9 @@
   <div id="simpleChart"></div>
 
   <script>
-    const symbolMap = { bitcoin: 'BTCUSDT', ethereum: 'ETHUSDT', solana: 'SOLUSDT', cardano: 'ADAUSDT', ripple: 'XRPUSDT' };
-    const symbol = symbolMap['{{ crypto }}'];
+    const symbol = '{{ crypto }}';
+    const isStock = !symbol.endsWith('USDT');
+    const endpoint = isStock ? 'stocks' : 'binance';
 
     const chartTypeEl = document.getElementById('chartType');
     const simpleTfEl = document.getElementById('simpleTf');
@@ -117,7 +115,7 @@
     const advDiv = document.getElementById('advancedChart');
 
     async function fetchKlines(interval, limit) {
-      const res = await fetch(`/api/binance/ohlcv/${symbol}?interval=${interval}&limit=${limit}`);
+      const res = await fetch(`/api/${endpoint}/ohlcv/${symbol}?interval=${interval}&limit=${limit}`);
       const json = await res.json();
       if (json.error) { console.error('API:', json.error); return null; }
       return json;
@@ -137,130 +135,126 @@
     }
 
     function drawAdvanced(data) {
-  Plotly.purge(advDiv);
-  const dates = data.timestamps.map(t => new Date(t));
-  const sma20 = calcSMA(data.close, 20);
-  const ema50 = calcEMA(data.close, 50);
+      Plotly.purge(advDiv);
+      const dates = data.timestamps.map(t => new Date(t));
+      const sma20 = calcSMA(data.close, 20);
+      const ema50 = calcEMA(data.close, 50);
 
-  const traces = [
-    {
-      x: dates,
-      open: data.open,
-      high: data.high,
-      low: data.low,
-      close: data.close,
-      type: 'candlestick',
-      increasing: { line: { color: '#4caf50' } },
-      decreasing: { line: { color: '#f44336' } },
-      hovertemplate:
-        'Time: %{x|%Y-%m-%d %H:%M:%S}<br>O: $%{open:.2f}<br>H: $%{high:.2f}<br>L: $%{low:.2f}<br>C: $%{close:.2f}<extra></extra>'
-    },
-    {
-      x: dates,
-      y: sma20,
-      type: 'scatter',
-      mode: 'lines',
-      name: 'SMA20',
-      line: { dash: 'dash', width: 1.5 },
-      hovertemplate:
-        'Time: %{x|%Y-%m-%d %H:%M:%S}<br>SMA: $%{y:.2f}<extra></extra>'
-    },
-    {
-      x: dates,
-      y: ema50,
-      type: 'scatter',
-      mode: 'lines',
-      name: 'EMA50',
-      line: { dash: 'dot', width: 1.5 },
-      hovertemplate:
-        'Time: %{x|%Y-%m-%d %H:%M:%S}<br>EMA: $%{y:.2f}<extra></extra>'
-    },
-    {
-      x: dates,
-      y: data.volume,
-      type: 'bar',
-      name: 'Volume',
-      yaxis: 'y2',
-      marker: { color: '#888' },
-      opacity: 0.4,
-      hovertemplate:
-        'Time: %{x|%Y-%m-%d %H:%M:%S}<br>Vol: %{y}<extra></extra>'
+      const traces = [
+        {
+          x: dates,
+          open: data.open,
+          high: data.high,
+          low: data.low,
+          close: data.close,
+          type: 'candlestick',
+          increasing: { line: { color: '#4caf50' } },
+          decreasing: { line: { color: '#f44336' } },
+          hovertemplate:
+            'Time: %{x|%Y-%m-%d %H:%M:%S}<br>O: $%{open:.2f}<br>H: $%{high:.2f}<br>L: $%{low:.2f}<br>C: $%{close:.2f}<extra></extra>'
+        },
+        {
+          x: dates,
+          y: sma20,
+          type: 'scatter',
+          mode: 'lines',
+          name: 'SMA20',
+          line: { dash: 'dash', width: 1.5 },
+          hovertemplate:
+            'Time: %{x|%Y-%m-%d %H:%M:%S}<br>SMA: $%{y:.2f}<extra></extra>'
+        },
+        {
+          x: dates,
+          y: ema50,
+          type: 'scatter',
+          mode: 'lines',
+          name: 'EMA50',
+          line: { dash: 'dot', width: 1.5 },
+          hovertemplate:
+            'Time: %{x|%Y-%m-%d %H:%M:%S}<br>EMA: $%{y:.2f}<extra></extra>'
+        },
+        {
+          x: dates,
+          y: data.volume,
+          type: 'bar',
+          name: 'Volume',
+          yaxis: 'y2',
+          marker: { color: '#888' },
+          opacity: 0.4,
+          hovertemplate:
+            'Time: %{x|%Y-%m-%d %H:%M:%S}<br>Vol: %{y}<extra></extra>'
+        }
+      ];
+
+      const longRange = ['1d', '1w', '1M'].includes(advIntEl.value);
+      const tickFmt = longRange ? '%Y' : '%b %d';
+
+      const layout = {
+        autosize: true,
+        template: 'plotly_dark',
+        dragmode: 'pan',
+        hovermode: 'x unified',
+        margin: { t: 40, l: 50, r: 40, b: 40 },
+        xaxis: {
+          rangeslider: { visible: true },
+          tickformat: tickFmt,
+          hoverformat: '%Y-%m-%d %H:%M:%S'
+        },
+        yaxis: {
+          domain: [0.25, 1],
+          title: 'Price (USD)',
+          tickprefix: '$'
+        },
+        yaxis2: {
+          domain: [0, 0.2],
+          title: 'Volume',
+          overlaying: 'y',
+          side: 'right'
+        },
+        legend: {
+          orientation: 'h',
+          x: 0.5,
+          xanchor: 'center',
+          y: 1.02
+        }
+      };
+
+      Plotly.newPlot(advDiv, traces, layout, { responsive: true });
     }
-  ];
 
-  // Adjust tickformat for long-term intervals
-  const selectedInterval = advIntEl.value;
-  const longRange = ['1d', '1w', '1M'].includes(selectedInterval);
-  const tickFmt = longRange ? '%Y' : '%b %d';
+    function drawSimple(data) {
+      Plotly.purge(simpleDiv);
+      const dates = data.timestamps.map(t => new Date(t));
+      const trace = {
+        x: dates,
+        y: data.close,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Close',
+        hovertemplate: `Time: %{x|%Y-%m-%d}<br>Close: $%{y:.2f}<extra></extra>`
+      };
 
-  const layout = {
-    autosize: true,
-    template: 'plotly_dark',
-    dragmode: 'pan',
-    hovermode: 'x unified',
-    margin: { t: 40, l: 50, r: 40, b: 40 },
-    xaxis: {
-      rangeslider: { visible: true },
-      tickformat: tickFmt,
-      hoverformat: '%Y-%m-%d %H:%M:%S'
-    },
-    yaxis: {
-      domain: [0.25, 1],
-      title: 'Price (USD)',
-      tickprefix: '$'
-    },
-    yaxis2: {
-      domain: [0, 0.2],
-      title: 'Volume',
-      overlaying: 'y',
-      side: 'right'
-    },
-    legend: {
-      orientation: 'h',
-      x: 0.5,
-      xanchor: 'center',
-      y: 1.02
+      let tickFmt = '%b %d';
+      if (['1y', '5y', 'all'].includes(simpleTfEl.value)) {
+        tickFmt = '%Y';
+      }
+
+      const layout = {
+        autosize: true,
+        template: 'plotly_dark',
+        margin: { t: 20, l: 50, r: 20, b: 40 },
+        xaxis: {
+          tickformat: tickFmt,
+          hoverformat: '%Y-%m-%d'
+        },
+        yaxis: {
+          title: 'Price (USD)',
+          tickprefix: '$'
+        }
+      };
+
+      Plotly.newPlot(simpleDiv, [trace], layout, { responsive: true });
     }
-  };
-
-  Plotly.newPlot(advDiv, traces, layout, { responsive: true });
-}
-
-
-function drawSimple(data) {
-  Plotly.purge(simpleDiv);
-  const dates = data.timestamps.map(t => new Date(t));
-  const trace = {
-    x: dates,
-    y: data.close,
-    type: 'scatter',
-    mode: 'lines',
-    name: 'Close',
-    hovertemplate: `Time: %{x|%Y-%m-%d}<br>Close: $%{y:.2f}<extra></extra>`
-  };
-
-  // Use year format for long-range charts
-  let tickFmt = '%b %d';
-  if (['1y', '5y', 'all'].includes(simpleTfEl.value)) {
-    tickFmt = '%Y';
-  }
-
-  const layout = {
-    autosize: true,
-    template: 'plotly_dark',
-    margin: { t: 20, l: 50, r: 20, b: 40 },
-    xaxis: {
-      tickformat: tickFmt,
-      hoverformat: '%Y-%m-%d'
-    },
-    yaxis: {
-      title: 'Price (USD)',
-      tickprefix: '$'
-    }
-  };
-
-  Plotly.newPlot(simpleDiv, [trace], layout, { responsive: true });
-}
 
     async function update() {
       const mode = chartTypeEl.value;
@@ -295,7 +289,4 @@ function drawSimple(data) {
   </script>
 </body>
 </html>
-
-
-
 {% endblock %}
