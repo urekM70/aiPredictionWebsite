@@ -8,7 +8,7 @@ cache = Cache()
 celery = None
 
 def create_app():
-    app = Flask(__name__, template_folder="../templates")
+    app = Flask(__name__, template_folder="../templates",static_folder="../static")
 
     # Konfiguracije
     app.secret_key = "aaaaaaaaaaaaaaaaaaaaaa"
@@ -16,7 +16,9 @@ def create_app():
     app.config['UPLOAD_FOLDER'] = 'static/uploads'
     app.config['CELERY_BROKER_URL'] = 'amqp://guest:guest@localhost:5672//'
     app.config['CELERY_RESULT_BACKEND'] = 'rpc://'
-
+    
+    app.config['CACHE_TYPE'] = 'simple'  
+    app.config['CACHE_DEFAULT_TIMEOUT'] = 600
     # Inicializacija razširitev
     bcrypt.init_app(app)
     cache.init_app(app)
