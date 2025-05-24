@@ -1,2 +1,7 @@
 models/
 data/
+db.sqlite
+notes.txt
+flask/_pycache_
+flask/app/_pycache_
+flask/tasks/_pycache_

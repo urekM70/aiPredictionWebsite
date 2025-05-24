@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session,flash
 from app.decorators import login_required, admin_required
 from app.db import get_db
 from app import cache
@@ -9,11 +9,17 @@ from tasks.core import test_task
 api_bp = Blueprint('api', __name__)
 
 # --- Celery test task ---
-@api_bp.route('/api/test-task')
-def test_route():
+@api_bp.route('/api/test-task/<crypto>')
+def test_route(crypto):
     task = test_task.delay()
-    return jsonify({'task_id': task.id})
+    return jsonify({'status': f'Training started for {crypto}', 'task_id': task.id})
 
+# --- Trigger Celery train_model_task ---
+@api_bp.route('/api/train/<crypto>', methods=['GET'])
+@login_required
+def trigger_training(crypto):
+    task = train_model_task.delay(crypto)
+    return jsonify({'status': f'Training started for {crypto}', 'task_id': task.id})
 
 # --- Binance OHLCV ---
 @api_bp.route('/api/binance/ohlcv/<symbol>')
@@ -65,6 +71,27 @@ def stock_ohlcv(symbol):
     }
 
     return jsonify(data)
+
+
+@api_bp.route('/admin/delete_user/<username>', methods=['POST'])
+@admin_required
+def delete_user(username):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM users WHERE username = ?', (username,))
+    conn.commit()
+    conn.close()
+    return jsonify({f'User {username} has been deleted.':'success'})
+
+@api_bp.route('/api/chat_clear', methods=['POST'])
+@admin_required
+def clear_chat():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM chat_messages')
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
 
 
 # --- Chat send ---
@@ -199,9 +226,4 @@ def delete_comment(comment_id):
     return jsonify({'success': True})
 
 
-# --- Trigger Celery train_model_task ---
-@api_bp.route('/api/train/<crypto>', methods=['POST'])
-@login_required
-def trigger_training(crypto):
-    task = train_model_task.delay(crypto)
-    return jsonify({'status': f'Training started for {crypto}', 'task_id': task.id})
+
