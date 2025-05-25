@@ -1,7 +1,8 @@
 from flask import Flask
 from flask_bcrypt import Bcrypt
 from flask_caching import Cache
-from .celery_config import make_celery
+from app.celery_config import make_celery
+from app import celery_instance
 
 bcrypt = Bcrypt()
 cache = Cache()
@@ -24,14 +25,19 @@ def create_app():
     cache.init_app(app)
 
     # Celery setup
-    global celery
-    celery = make_celery(app)
-
+    global celery_app
+    celery_instance.celery_app = make_celery(app)
+    from tasks import data_tasks
     # Registracija route-ov in API endpointov
     from .routes import setup_routes
     from .api import api_bp
-
+    from .db import init_db # Import init_db
+ 
     setup_routes(app)
     app.register_blueprint(api_bp)
+
+    # Initialize database tables
+    with app.app_context():
+        init_db()
 
     return app

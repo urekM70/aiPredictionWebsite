@@ -11,7 +11,7 @@ api_bp = Blueprint('api', __name__)
 # --- Celery test task ---
 @api_bp.route('/api/test-task/<crypto>')
 def test_route(crypto):
-    task = test_task.delay()
+    task = test_task.delay(crypto)
     return jsonify({'status': f'Training started for {crypto}', 'task_id': task.id})
 
 # --- Trigger Celery train_model_task ---
@@ -71,6 +71,37 @@ def stock_ohlcv(symbol):
     }
 
     return jsonify(data)
+
+# --- Local Market Data OHLCV ---
+@api_bp.route('/api/local/ohlcv/<string:symbol>', methods=['GET'])
+@login_required 
+def get_local_ohlcv(symbol):
+    """
+    Fetches stored OHLCV data for a given symbol from the local database.
+    """
+    limit = request.args.get('limit', default=100, type=int)
+    conn = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        query = """
+            SELECT symbol, timestamp, open, high, low, close, volume 
+            FROM market_data 
+            WHERE symbol = ? 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        """
+        cursor.execute(query, (symbol.upper(), limit)) # Convert symbol to upper, common practice
+        rows = cursor.fetchall()
+        data = [dict(row) for row in rows]
+        return jsonify(data)
+    except Exception as e:
+        # Basic error handling, can be more specific
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
 
 
 @api_bp.route('/admin/delete_user/<username>', methods=['POST'])
