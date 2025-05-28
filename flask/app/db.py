@@ -57,31 +57,31 @@ def init_db():
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
     # --- MARKET DATA ---
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS market_data (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        symbol TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
-        open REAL NOT NULL,
-        high REAL NOT NULL,
-        low REAL NOT NULL,
-        close REAL NOT NULL,
-        volume REAL NOT NULL,
-        UNIQUE(symbol, timestamp)
-    )''')
+    # cursor.execute('''
+    # CREATE TABLE IF NOT EXISTS market_data (
+    #     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    #     symbol TEXT NOT NULL,
+    #     timestamp INTEGER NOT NULL,
+    #     open REAL NOT NULL,
+    #     high REAL NOT NULL,
+    #     low REAL NOT NULL,
+    #     close REAL NOT NULL,
+    #     volume REAL NOT NULL,
+    #     UNIQUE(symbol, timestamp)
+    # )''')
 
     conn.commit()
     conn.close()
 
 
-def insert_market_data(db_connection, data_list):
-    """Vstavi podatke v tabelo market_data, ignorira duplikate."""
-    cursor = db_connection.cursor()
-    cursor.executemany('''
-        INSERT OR IGNORE INTO market_data (symbol, timestamp, open, high, low, close, volume)
-        VALUES (:symbol, :timestamp, :open, :high, :low, :close, :volume)
-    ''', data_list)
-    db_connection.commit()
+# def insert_market_data(db_connection, data_list):
+#     """Vstavi podatke v tabelo market_data, ignorira duplikate."""
+#     cursor = db_connection.cursor()
+#     cursor.executemany('''
+#         INSERT OR IGNORE INTO market_data (symbol, timestamp, open, high, low, close, volume)
+#         VALUES (:symbol, :timestamp, :open, :high, :low, :close, :volume)
+#     ''', data_list)
+#     db_connection.commit()
 
 def create_admin_user(bcrypt):
     """Ustvari admin uporabnika, če še ne obstaja."""

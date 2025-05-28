@@ -1,2 +1,2 @@
 docker start rabbitmq
-celery -A celery_worker.celery worker --loglevel=info
+celery -A celery_worker.celery_app worker --loglevel=info

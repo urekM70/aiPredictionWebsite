@@ -6,4 +6,4 @@ flask/_pycache_
 flask/app/_pycache_
 flask/tasks/_pycache_
 /#main_bot/
-flask/db.sqlite
+/flask/db.sqlite
