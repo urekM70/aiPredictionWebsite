@@ -1,21 +1,20 @@
-from flask import Blueprint, request, jsonify, session,flash
+from flask import Blueprint, request, jsonify, session, flash
 from app.decorators import login_required, admin_required
 from app.db import get_db
 from app import cache
 import requests
 import yfinance as yf
-from tasks.core import test_task
+from tasks.core import test_task, train_model_task
 
 api_bp = Blueprint('api', __name__)
 
 # --- Celery test task ---
 @api_bp.route('/api/test-task/<crypto>')
 def test_route(crypto):
-    task = test_task.delay(crypto)
-    return jsonify({'status': f'Training started for {crypto}', 'task_id': task.id})
+    pass
 
 # --- Trigger Celery train_model_task ---
-@api_bp.route('/api/train/<crypto>', methods=['GET'])
+@api_bp.route('/api/train/<crypto>', methods=['POST'])
 @login_required
 def trigger_training(crypto):
     task = train_model_task.delay(crypto)

@@ -13,7 +13,7 @@ client = Client(api_key, api_secret)
 if not os.path.exists('data'):
     os.makedirs('data')
 
-def get_historical_data(symbol, interval, start_date, end_date):
+def get_historical_data(symbol, interval, start_date, end_date=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")):
     """Fetches historical data from Binance API and saves as CSV."""
     try:
         klines = client.get_historical_klines(

@@ -8,3 +8,4 @@ flask/tasks/_pycache_
 /#main_bot/
 /flask/db.sqlite
 /flask/tasks/marketdata
+/flask/tasks/models/

@@ -100,6 +100,28 @@
 
   <div id="advancedChart"></div>
   <div id="simpleChart"></div>
+  <!-- Add inside <header> -->
+<button id="predictBtn" class="btn btn-warning" style="margin-left: 10px;">Generate Prediction</button>
+<script>
+document.getElementById("predictBtn").addEventListener("click", async () => {
+  try {
+    const cryptoSymbol = symbol.replace("USDT", "");  // remove USDT
+    const res = await fetch(`/api/train/${cryptoSymbol}`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      alert(`Prediction task started.\nTask ID: ${data.task_id}`);
+    } else {
+      const err = await res.json();
+      alert(`Error: ${err.error || 'Failed to trigger prediction.'}`);
+    }
+  } catch (e) {
+    console.error(e);
+    alert("An error occurred while starting the prediction.");
+  }
+});
+
+
+</script>
 
   <script>
     const symbol = '{{ crypto }}';
