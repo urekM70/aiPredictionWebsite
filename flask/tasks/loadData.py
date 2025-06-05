@@ -13,6 +13,9 @@ import os
 import pandas as pd
 import datetime
 import pandas_ta as ta
+from tasks.data_tasks import fetch_binance_data, fetch_yfinance_data
+import tasks.core
+import celery
 
 CACHE_DIR =  "tasks/marketdata/"  # Directory where cached data will be stored
 
@@ -76,6 +79,11 @@ def load_or_fetch_data(symbol, interval):
 
         if not os.path.exists(base_data_path):
             print(f"Error: Base data file not found: {base_data_path}. Ensure data_tasks.py has run for this symbol and interval.")
+            if asset_type == 'crypto':
+                fetch_binance_data.delay(symbol, interval)
+            elif asset_type == 'stock':
+                fetch_yfinance_data.delay(symbol, interval)
+            tasks.core.train_model_task.apply_async((symbol,),countdown=20)  # Trigger model training task
             return None # Or raise an exception
 
         base_df = pd.read_csv(base_data_path)

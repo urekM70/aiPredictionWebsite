@@ -24,7 +24,9 @@ def init_db():
         is_admin INTEGER DEFAULT 0,
         bio TEXT DEFAULT '',
         email TEXT DEFAULT '',
-        profile_pic TEXT DEFAULT 'default.png'
+        profile_pic TEXT DEFAULT 'default.png',
+        is_premium INTEGER DEFAULT 0,
+        token_balance INTEGER DEFAULT 10
     )''')
 
     # --- BLOG POSTS ---
@@ -55,6 +57,18 @@ def init_db():
         username TEXT NOT NULL,
         message TEXT NOT NULL,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )''')
+
+    # --- PREDICTIONS ---
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS predictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        symbol TEXT NOT NULL,
+        interval TEXT NOT NULL,
+        predictions TEXT NOT NULL, -- Will store JSON list
+        actuals TEXT NOT NULL,     -- Will store JSON list
+        timestamp DATETIME NOT NULL,
+        metrics TEXT NOT NULL -- Will store JSON dict
     )''')
     # --- MARKET DATA ---
     # cursor.execute('''

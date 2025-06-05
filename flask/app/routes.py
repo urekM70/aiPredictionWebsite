@@ -15,7 +15,25 @@ def setup_routes(app):
     @app.route('/dashboard')
     @login_required
     def dashboard():
-        return render_template('dashboard.html')
+        conn = None
+        token_balance = 0  # Default value
+        is_premium = False # Default value
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT token_balance, is_premium FROM users WHERE username = ?", (session['username'],))
+            user = cursor.fetchone()
+            if user:
+                token_balance = user['token_balance']
+                is_premium = user['is_premium'] == 1 # Convert DB integer to boolean
+        except Exception as e:
+            # Log error if necessary, for now use defaults
+            print(f"Error fetching user details for dashboard: {e}") # Consider proper logging
+        finally:
+            if conn:
+                conn.close()
+        
+        return render_template('dashboard.html', token_balance=token_balance, is_premium=is_premium)
 
     @app.route('/graphs')
     @login_required
@@ -198,7 +216,7 @@ def setup_routes(app):
         conn = get_db()
         cursor = conn.cursor()
 
-        cursor.execute('SELECT username, is_admin FROM users ORDER BY username')
+        cursor.execute('SELECT id, username, is_admin, is_premium, token_balance FROM users ORDER BY username')
         users = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute('SELECT id, username, title FROM blog_posts ORDER BY timestamp DESC LIMIT 10')
@@ -206,3 +224,34 @@ def setup_routes(app):
 
         conn.close()
         return render_template('admin.html', users=users, blog_posts=blog_posts)
+
+    @app.route('/admin/toggle_premium/<int:user_id>', methods=['POST'])
+    @admin_required
+    def toggle_premium(user_id):
+        conn = get_db()
+        cursor = conn.cursor()
+        # Toggle the is_premium status (0 to 1, 1 to 0)
+        cursor.execute("UPDATE users SET is_premium = 1 - is_premium WHERE id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+        flash('User premium status updated.', 'success')
+        return redirect(url_for('admin_panel'))
+
+    @app.route('/admin/add_tokens/<int:user_id>', methods=['POST'])
+    @admin_required
+    def add_tokens(user_id):
+        try:
+            tokens_to_add = int(request.form.get('tokens', 0))
+            if tokens_to_add <= 0:
+                flash('Please provide a positive number of tokens to add.', 'danger')
+                return redirect(url_for('admin_panel'))
+
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET token_balance = token_balance + ? WHERE id = ?", (tokens_to_add, user_id))
+            conn.commit()
+            conn.close()
+            flash(f'{tokens_to_add} tokens added to user.', 'success')
+        except ValueError:
+            flash('Invalid number of tokens.', 'danger')
+        return redirect(url_for('admin_panel'))

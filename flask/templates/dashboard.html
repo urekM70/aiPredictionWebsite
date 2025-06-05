@@ -11,39 +11,125 @@
             <div class="card-body">
                 <h5 class="card-title">AI Market Predictor Dashboard</h5>
                 <p class="card-text">This is your personal dashboard where you can view predictions and manage your settings.</p>
+                <hr>
+                <p>Your Token Balance: <strong id="user-token-balance">{{ token_balance | default('N/A') }}</strong></p>
+                {% if not is_premium %}
+                <div id="premium-upgrade-section">
+                    <p>You are not a premium member. You can use tokens to view predictions or upgrade for unlimited access.</p>
+                    <button class="btn btn-success btn-sm">Upgrade to Premium</button>
+                </div>
+                {% else %}
+                <div id="premium-user-section">
+                    <p class="text-success"><strong>You are a Premium Member!</strong> You have unlimited access to predictions.</p>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
 <div class="row">
+    <!-- Crypto -->
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header">
                 <h5>Crypto Predictions</h5>
             </div>
-            <div class="card-body">
-                <p class="card-text">Your cryptocurrency market predictions will appear here.</p>
-                <div class="alert alert-info">
-                    Predictions are updated every 24 hours based on the latest market data.
-                </div>
+            <div class="card-body" id="crypto-predictions-body">
+                <p>Loading predictions...</p>
             </div>
         </div>
     </div>
 
+    <!-- Stocks -->
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header">
                 <h5>Stock Predictions</h5>
             </div>
-            <div class="card-body">
-                <p class="card-text">Your stock market predictions will appear here.</p>
-                <div class="alert alert-info">
-                    Configure your watchlist to receive personalized predictions.
-                </div>
+            <div class="card-body" id="stock-predictions-body">
+                <p>Loading predictions...</p>
             </div>
         </div>
     </div>
 </div>
+
+<script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const tokenBalanceElement = document.getElementById('user-token-balance');
+        let currentUserTokenBalance = {{ token_balance | default(0) }};
+        const currentUserIsPremium = {{ is_premium | default(false) | tojson }};
+
+        const supportedCryptos = ["BTC", "ETH", "SOL", "ADA","XRP"];
+        const supportedStocks = ["AAPL", "GOOG", "MSFT"];
+        const cryptoContainer = document.getElementById('crypto-predictions-body');
+        const stockContainer = document.getElementById('stock-predictions-body');
+
+        const loadPredictions = (symbols, container) => {
+            container.innerHTML = '';
+            symbols.forEach(symbol => {
+                fetch(`/api/predictions/${symbol}`)
+                    .then(response => response.json().then(data => ({ status: response.status, body: data })))
+                    .then(({ status, body }) => {
+                        const symbolDiv = document.createElement('div');
+                        symbolDiv.classList.add('mb-3', 'prediction-entry');
+                        let content = `<h6>${symbol}</h6>`;
+
+                        if (status === 200 && body.predictions && body.actuals) {
+                            const chartId = `chart-${symbol}`;
+                            content += `<div id="${chartId}" style="width:100%;height:250px;"></div>`;
+                            content += `<p class="text-muted small">Last updated: ${new Date(body.timestamp).toLocaleString()}</p>`;
+
+                            setTimeout(() => {
+                                const trace1 = {
+                                    x: Array.from(Array(body.actuals.length).keys()),
+                                    y: body.actuals,
+                                    mode: 'lines', name: 'Actual',
+                                    line: {color: 'blue'}
+                                };
+                                const trace2 = {
+                                    x: Array.from(Array(body.predictions.length).keys()),
+                                    y: body.predictions,
+                                    mode: 'lines', name: 'Predicted',
+                                    line: {color: 'red', dash: 'dash'}
+                                };
+                                const layout = {
+                                    margin: { t: 20, b: 40, l: 40, r: 10 },
+                                    xaxis: { title: 'Time Step' },
+                                    yaxis: { title: 'Price' },
+                                    legend: { orientation: "h", yanchor: "bottom", y: 1.02, xanchor: "right", x: 1 },
+                                    height: 250
+                                };
+                                Plotly.newPlot(chartId, [trace1, trace2], layout, { responsive: true });
+                            }, 0);
+
+                        } else if (status === 404) {
+                            content += "<p class='text-warning small'>No prediction available yet.</p>";
+                        } else if (status === 403) {
+                            content += `<p class='text-danger small'>${body.error || 'Access denied. Upgrade or check token balance.'}</p>`;
+                            currentUserTokenBalance = Math.max(0, currentUserTokenBalance - 1);
+                            if (tokenBalanceElement) tokenBalanceElement.textContent = currentUserTokenBalance;
+                        } else {
+                            content += `<p class='text-danger small'>Error: ${body.error || 'Unknown error'}</p>`;
+                        }
+
+                        symbolDiv.innerHTML = content;
+                        container.appendChild(symbolDiv);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching prediction for ' + symbol + ':', error);
+                        const symbolDiv = document.createElement('div');
+                        symbolDiv.classList.add('mb-3', 'prediction-entry');
+                        symbolDiv.innerHTML = `<h6>${symbol}</h6><p class='text-danger small'>Could not load prediction data.</p>`;
+                        container.appendChild(symbolDiv);
+                    });
+            });
+        };
+
+        loadPredictions(supportedCryptos, cryptoContainer);
+        loadPredictions(supportedStocks, stockContainer);
+    });
+</script>
 
 {% endblock %}

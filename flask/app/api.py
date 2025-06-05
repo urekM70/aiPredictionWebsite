@@ -5,6 +5,8 @@ from app import cache
 import requests
 import yfinance as yf
 from tasks.core import test_task, train_model_task
+import json
+from datetime import datetime
 
 api_bp = Blueprint('api', __name__)
 
@@ -101,6 +103,78 @@ def get_local_ohlcv(symbol):
         if conn:
             conn.close()
 
+@api_bp.route('/api/predictions/<symbol>', methods=['GET'])
+@login_required
+def get_predictions(symbol):
+    symbol = symbol.upper().replace("USDT", "")  # Ensure symbol is uppercase
+
+    conn = None
+    token_deducted_this_request = False # Moved initialization here
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Get current user's details (is_premium, token_balance)
+        cursor.execute("SELECT is_premium, token_balance FROM users WHERE username = ?", (session['username'],))
+        user = cursor.fetchone()
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        user_is_premium = user['is_premium'] == 1
+        user_token_balance = user['token_balance']
+
+        # Authorization logic
+        can_access = False
+        # token_deducted_this_request = False # Original position, moved up
+        if user_is_premium:
+            can_access = True
+        elif user_token_balance > 0:
+            can_access = True
+            # Deduct token
+            cursor.execute("UPDATE users SET token_balance = token_balance - 1 WHERE username = ?", (session['username'],))
+            conn.commit() 
+            token_deducted_this_request = True
+        
+        if not can_access:
+            return jsonify({'error': 'Upgrade required or insufficient tokens.'}), 403
+
+        # Fetch prediction
+        interval = request.args.get('interval', None)
+        
+        query = """
+            SELECT symbol, interval, predictions, actuals, timestamp 
+            FROM predictions 
+            WHERE symbol = ? 
+        """
+        params = [symbol.upper()]
+
+        if interval:
+            query += " AND interval = ? "
+            params.append(interval)
+        
+        query += " ORDER BY timestamp DESC LIMIT 1"
+        
+        cursor.execute(query, tuple(params))
+        prediction_row = cursor.fetchone()
+
+        if prediction_row:
+            prediction_data = dict(prediction_row)
+            prediction_data['predictions'] = json.loads(prediction_data['predictions'])
+            prediction_data['actuals'] = json.loads(prediction_data['actuals'])
+            return jsonify(prediction_data)
+        else:
+            return jsonify({'message': 'No prediction available yet.'}), 404
+
+    except Exception as e:
+        # Note: Current logic does not refund token if error occurs after deduction.
+        # This is per current understanding of "deduct per API call".
+        # If a refund is needed on error post-deduction, more complex transaction handling
+        # or moving deduction after successful fetch would be required.
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
 
 
 @api_bp.route('/admin/delete_user/<username>', methods=['POST'])

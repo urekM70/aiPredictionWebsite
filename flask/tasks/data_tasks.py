@@ -21,8 +21,8 @@ logger.addHandler(handler)
 # Constants
 MARKETDATA_DIR = "tasks/marketdata/"
 CSV_HEADER = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
-DEFAULT_BINANCE_HISTORICAL_DAYS = 3 * 365
-DEFAULT_YFINANCE_HISTORICAL_DAYS = 2 * 365
+DEFAULT_BINANCE_HISTORICAL_DAYS = 2 * 365
+DEFAULT_YFINANCE_HISTORICAL_DAYS = 7 * 365
 
 
 def generate_csv_path(symbol: str, interval: str, directory: str = MARKETDATA_DIR) -> str:
@@ -30,8 +30,8 @@ def generate_csv_path(symbol: str, interval: str, directory: str = MARKETDATA_DI
     return os.path.join(directory, f"{clean_symbol}_{interval}_essential.csv")
 
 
-def _get_latest_timestamp_csv(symbol: str, marketdata_dir: str = MARKETDATA_DIR) -> int | None:
-    csv_filepath = generate_csv_path(symbol, "1h", marketdata_dir)
+def _get_latest_timestamp_csv(symbol: str, interval: str, marketdata_dir: str = MARKETDATA_DIR) -> int | None:
+    csv_filepath = generate_csv_path(symbol, interval, marketdata_dir)
     if not os.path.exists(csv_filepath) or os.path.getsize(csv_filepath) == 0:
         return None
     try:
@@ -54,7 +54,7 @@ def _interval_to_timedelta(interval_str: str) -> timedelta:
         logger.error(f"Invalid interval format: {interval_str} — {e}")
         raise
 
-def upToDateChecker(symbol: str, interval: str = "1h") -> bool:
+def upToDateChecker(symbol: str, interval: str) -> bool:
     """
     Check if the data for the given symbol and interval is up to date.
     Returns True if data is fresh, False otherwise.
@@ -62,7 +62,6 @@ def upToDateChecker(symbol: str, interval: str = "1h") -> bool:
     csv_filepath = generate_csv_path(symbol, interval)
     if not os.path.exists(csv_filepath) or os.path.getsize(csv_filepath) == 0:
         return False
-
     try:
         if "USDT" not in symbol.upper():
             return True
@@ -78,7 +77,7 @@ def upToDateChecker(symbol: str, interval: str = "1h") -> bool:
         return False
 
 @shared_task(name='fetch_binance_data')
-def fetch_binance_data(symbol: str, interval: str, batch_size: int = 1000):
+def fetch_binance_data(symbol: str, interval: str = "1h", batch_size: int = 1000):
     logger.critical(f"STARTING: fetch_binance_data | Symbol: {symbol} | Interval: {interval}")
     api_key = os.environ.get('BINANCE_API_KEY', '')
     api_secret = os.environ.get('BINANCE_API_SECRET', '')
@@ -89,7 +88,7 @@ def fetch_binance_data(symbol: str, interval: str, batch_size: int = 1000):
     total_written_count = 0
 
     try:
-        last_ts = _get_latest_timestamp_csv(symbol)
+        last_ts = _get_latest_timestamp_csv(symbol, interval)
         interval_td = _interval_to_timedelta(interval)
 
         start_dt = datetime.now(timezone.utc) - timedelta(days=DEFAULT_BINANCE_HISTORICAL_DAYS) if last_ts is None else datetime.fromtimestamp(last_ts, timezone.utc) + interval_td
@@ -128,10 +127,20 @@ def fetch_binance_data(symbol: str, interval: str, batch_size: int = 1000):
                 if last_ts:
                     df = df[df['timestamp'] > last_ts]
                 if not df.empty:
-                    file_exists = os.path.exists(csv_filepath)
-                    is_empty = file_exists and os.path.getsize(csv_filepath) == 0
-                    df.to_csv(csv_filepath, mode='a', header=not file_exists or is_empty, index=False, columns=CSV_HEADER)
-                    total_written_count += len(df)
+                # Ensure header is written only if file is missing or has no rows
+                    write_header = not os.path.isfile(csv_filepath)
+                    if not write_header:
+                        try:
+                            write_header = pd.read_csv(csv_filepath, nrows=1).empty
+                        except pd.errors.EmptyDataError:
+                            write_header = True  # treat file as empty if reading fails
+                        except Exception as e:
+                            logger.error(f"Error checking CSV header necessity: {e}")
+                            write_header = False
+
+                    df.to_csv(csv_filepath, mode='a', header=write_header, index=False, columns=CSV_HEADER)
+
+                total_written_count += len(df)
             else:
                 logger.info(f"No new records to write for {symbol} at interval {interval}.")
                 break
@@ -155,7 +164,7 @@ def fetch_yfinance_data(symbol: str, period_unused: str = '3y', interval: str = 
     total_written_count = 0
 
     try:
-        last_ts = _get_latest_timestamp_csv(symbol)
+        last_ts = _get_latest_timestamp_csv(symbol, interval)
         now = datetime.now(timezone.utc)
         interval_td = _interval_to_timedelta(interval)
 
@@ -190,12 +199,29 @@ def fetch_yfinance_data(symbol: str, period_unused: str = '3y', interval: str = 
                 'volume': float(row['Volume'])
             })
 
-        if rows:
-            df_out = pd.DataFrame(rows)
-            file_exists = os.path.exists(csv_filepath)
-            is_empty = file_exists and os.path.getsize(csv_filepath) == 0
-            df_out.to_csv(csv_filepath, mode='a', header=not file_exists or is_empty, index=False, columns=CSV_HEADER)
-            total_written_count += len(df_out)
+        if not rows:
+            logger.info(f"No new rows to write for {symbol}. Skipping CSV write.")
+            return
+
+        df_out = pd.DataFrame(rows)
+
+        missing_cols = [col for col in CSV_HEADER if col not in df_out.columns]
+        if missing_cols:
+            logger.error(f"Missing required columns in df_out: {missing_cols}")
+            return
+
+        write_header = not os.path.isfile(csv_filepath)
+        if not write_header:
+            try:
+                write_header = pd.read_csv(csv_filepath, nrows=1).empty
+            except pd.errors.EmptyDataError:
+                write_header = True
+            except Exception as e:
+                logger.error(f"Error checking CSV header for {symbol}: {e}")
+                write_header = False
+
+        df_out.to_csv(csv_filepath, mode='a', header=write_header, index=False, columns=CSV_HEADER)
+        total_written_count += len(df_out)
 
         logger.info(f"COMPLETED: {total_written_count} records written for {symbol} using YFinance.")
     except Exception as e:

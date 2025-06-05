@@ -9,3 +9,5 @@ flask/tasks/_pycache_
 /flask/db.sqlite
 /flask/tasks/marketdata
 /flask/tasks/models/
+logs/
+start.sh
