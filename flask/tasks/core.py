@@ -16,7 +16,7 @@ def check_data_exists(symbol: str, interval: str = '1h') -> bool:
 
 
 def stockOrCrypto(symbol: str) -> str:
-    cryptos = ["BTC", "ETH", "SOL", "ADA", "XRP"]
+    cryptos = ["BTC", "ETH", "SOL", "ADA", "XRP","LTC"]
     return 'crypto' if symbol in cryptos else 'stock'
 
 

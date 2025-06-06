@@ -65,6 +65,7 @@
         const supportedStocks = ["AAPL", "GOOG", "MSFT", "AMZN", "TSLA"];
         const cryptoContainer = document.getElementById('crypto-predictions-body');
         const stockContainer = document.getElementById('stock-predictions-body');
+        
 
         const loadPredictions = (symbols, container) => {
             container.innerHTML = '';
@@ -80,29 +81,64 @@
                             const chartId = `chart-${symbol}`;
                             content += `<div id="${chartId}" style="width:100%;height:250px;"></div>`;
                             content += `<p class="text-muted small">Last updated: ${new Date(body.timestamp).toLocaleString()}</p>`;
+                            const predictionDates = body.prediction_timestamps.map(t => new Date(t.replace(' ', 'T')));
+ 
 
-                            setTimeout(() => {
-                                const trace1 = {
-                                    x: Array.from(Array(body.actuals.length).keys()),
-                                    y: body.actuals,
-                                    mode: 'lines', name: 'Actual',
-                                    line: {color: 'blue'}
-                                };
-                                const trace2 = {
-                                    x: Array.from(Array(body.predictions.length).keys()),
-                                    y: body.predictions,
-                                    mode: 'lines', name: 'Predicted',
-                                    line: {color: 'red', dash: 'dash'}
-                                };
-                                const layout = {
-                                    margin: { t: 20, b: 40, l: 40, r: 10 },
-                                    xaxis: { title: 'Time Step' },
-                                    yaxis: { title: 'Price' },
-                                    legend: { orientation: "h", yanchor: "bottom", y: 1.02, xanchor: "right", x: 1 },
-                                    height: 250
-                                };
-                                Plotly.newPlot(chartId, [trace1, trace2], layout, { responsive: true });
-                            }, 0);
+                            console.log("Prediction length:", body.predictions.length);
+                            console.log("Timestamp length:", predictionDates.length);
+                            console.log("First prediction date:", predictionDates[0]);
+                       // Fixed section of the dashboard.html JavaScript code
+                            // Fixed section of the dashboard.html JavaScript code
+setTimeout(() => {
+    // Convert to real JavaScript Date objects
+    const actualDates = body.actual_timestamps.map(t => new Date(t.replace(' ', 'T')));
+    const predictionDates = body.prediction_timestamps.map(t => new Date(t.replace(' ', 'T')));
+
+    // Define traces
+    const traceActual = {
+        x: actualDates,
+        y: body.actuals,
+        mode: 'lines',
+        name: 'Actual',
+        line: { color: 'blue' }
+    };
+
+    const tracePredicted = {
+        x: predictionDates,
+        y: body.predictions,
+        mode: 'lines',
+        name: 'Predicted',
+        line: { color: 'red', dash: 'dash' }
+    };
+
+    // Define layout
+    const layout = {
+        margin: { t: 20, b: 40, l: 40, r: 10 },
+        xaxis: {
+            title: 'Time',
+            type: 'date',
+            tickformat: '%Y-%m-%d\n%H:%M',
+            tickangle: -30
+        },
+        yaxis: {
+            title: 'Price',
+            rangemode: 'tozero'
+        },
+        legend: {
+            orientation: 'h',
+            yanchor: 'bottom',
+            y: 1.02,
+            xanchor: 'right',
+            x: 1
+        },
+        height: 300
+    };
+
+    // Draw chart
+    Plotly.newPlot(chartId, [traceActual, tracePredicted], layout, { responsive: true });
+}, 0);
+
+
 
                         } else if (status === 404) {
                             content += "<p class='text-warning small'>No prediction available yet.</p>";

@@ -67,6 +67,8 @@ def init_db():
         interval TEXT NOT NULL,
         predictions TEXT NOT NULL, -- Will store JSON list
         actuals TEXT NOT NULL,     -- Will store JSON list
+        prediction_timestamps TEXT,
+        timestamps TEXT,
         timestamp DATETIME NOT NULL,
         metrics TEXT NOT NULL -- Will store JSON dict
     )''')

@@ -1,8 +1,10 @@
+from datetime import timezone
 import datetime
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import RobustScaler
+from sklearn.multioutput import MultiOutputRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 from tasks.loadData import load_or_fetch_data
@@ -43,7 +45,7 @@ def create_features(df):
     
     return df
 
-def preprocess_data_optimized(df, sequence_length=24, target_steps=1):
+def preprocess_data_optimized(df, sequence_length=24, target_steps=24*2):
     """
     Optimized preprocessing with better feature selection and scaling
     sequence_length: reduced from 60 to 24 for hourly data (1 day lookback)
@@ -97,8 +99,11 @@ def preprocess_data_optimized(df, sequence_length=24, target_steps=1):
     
     # Target is 'close' price target_steps ahead
     close_idx = available_features.index('close')
-    y = scaled_data[sequence_length + target_steps - 1:, close_idx]
-    
+    y = np.array([
+        scaled_data[i + sequence_length : i + sequence_length + target_steps, close_idx]
+        for i in range(len(scaled_data) - sequence_length - target_steps + 1)
+    ])
+
     logger.info(f"Data preprocessed: {X.shape[0]} sequences created, each with {X.shape[1]} features")
     return X, y, scaler, available_features
 
@@ -109,28 +114,24 @@ def create_time_series_splits(X, y, n_splits=5):
 
 def train_optimized_model(X_train, y_train, X_val, y_val):
     """Train XGBoost with optimized hyperparameters for time series"""
-    model = XGBRegressor(
-        # Reduced complexity to prevent overfitting
-        n_estimators=300,  # Reduced from 600
-        learning_rate=0.05,  # Increased from 0.02
-        max_depth=3,  # Reduced from 4
-        subsample=0.8,  # Reduced from 0.9
-        colsample_bytree=0.7,  # Reduced from 0.8
-        min_child_weight=50,  # Increased from 20
-        gamma=0.2,  # Increased from 0.1
-        reg_lambda=2.0,  # Increased from 1.0
-        alpha=0.5,  # Increased from 0.2
-        objective='reg:squarederror',
-        early_stopping_rounds=50,  # Increased from 30
-        verbosity=0,  # Reduced verbosity
-        random_state=42
-    )
-    
-    model.fit(
-        X_train, y_train,
-        eval_set=[(X_val, y_val)],
-        verbose=False
-    )
+    base_model = XGBRegressor(
+            n_jobs=2,
+            n_estimators=100,
+            learning_rate=0.05,
+            max_depth=3,
+            subsample=0.8,
+            colsample_bytree=0.7,
+            min_child_weight=50,
+            gamma=0.2,
+            reg_lambda=2.0,
+            alpha=0.5,
+            objective='reg:squarederror',
+            verbosity=2,
+            random_state=42
+        )
+    model = MultiOutputRegressor(base_model)
+
+    model.fit(X_train, y_train)
     
     return model
 
@@ -149,29 +150,43 @@ def smooth_predictions_advanced(predictions, window_size=5, method='ewm'):
         return np.convolve(predictions, np.ones(window_size)/window_size, mode='same')
 
 def evaluate_model(y_true, y_pred, scaler, feature_columns):
-    """Evaluate model performance with proper inverse scaling"""
-    # Create dummy array for inverse transform
-    dummy_features = np.zeros((len(y_true), len(feature_columns)))
+    """
+    Evaluate multi-step prediction performance with inverse scaling.
+    y_true and y_pred must be shape (n_samples, target_steps)
+    """
     close_idx = feature_columns.index('close')
-    dummy_features[:, close_idx] = y_true
-    y_true_rescaled = scaler.inverse_transform(dummy_features)[:, close_idx]
-    
-    dummy_features[:, close_idx] = y_pred
-    y_pred_rescaled = scaler.inverse_transform(dummy_features)[:, close_idx]
-    
-    mse = mean_squared_error(y_true_rescaled, y_pred_rescaled)
-    mae = mean_absolute_error(y_true_rescaled, y_pred_rescaled)
-    rmse = np.sqrt(mse)
-    
-    # Calculate percentage error
-    mape = np.mean(np.abs((y_true_rescaled - y_pred_rescaled) / y_true_rescaled)) * 100
-    
-    logger.info(f"Model Performance:")
-    logger.info(f"RMSE: {rmse:.4f}")
-    logger.info(f"MAE: {mae:.4f}")
-    logger.info(f"MAPE: {mape:.2f}%")
-    
-    return y_true_rescaled, y_pred_rescaled, rmse, mae, mape
+
+    # Reconstruct dummy feature arrays to inverse-transform
+    def inverse_transform_sequence(data):
+        dummy = np.zeros((data.shape[0], len(feature_columns)))
+        dummy[:, close_idx] = data
+        return scaler.inverse_transform(dummy)[:, close_idx]
+
+    # Inverse transform each time step
+    y_true_rescaled = np.stack([
+        inverse_transform_sequence(y_true[:, i]) for i in range(y_true.shape[1])
+    ], axis=1)
+
+    y_pred_rescaled = np.stack([
+        inverse_transform_sequence(y_pred[:, i]) for i in range(y_pred.shape[1])
+    ], axis=1)
+
+    # Calculate per-step metrics
+    rmse_steps = np.sqrt(np.mean((y_true_rescaled - y_pred_rescaled) ** 2, axis=0))
+    mae_steps = np.mean(np.abs(y_true_rescaled - y_pred_rescaled), axis=0)
+    mape_steps = np.mean(np.abs((y_true_rescaled - y_pred_rescaled) / y_true_rescaled), axis=0) * 100
+
+    # Average metrics
+    rmse_avg = np.mean(rmse_steps)
+    mae_avg = np.mean(mae_steps)
+    mape_avg = np.mean(mape_steps)
+
+    logger.info(f"Model Performance (multi-step):")
+    logger.info(f"Avg RMSE: {rmse_avg:.4f}")
+    logger.info(f"Avg MAE: {mae_avg:.4f}")
+    logger.info(f"Avg MAPE: {mape_avg:.2f}%")
+
+    return y_true_rescaled, y_pred_rescaled, rmse_avg, mae_avg, mape_avg
 
 def run_crypto_prediction(symbol, interval='1h', start_date=None, end_date=None):
     logger.info("Starting optimized crypto price prediction process...")
@@ -192,7 +207,7 @@ def run_crypto_prediction(symbol, interval='1h', start_date=None, end_date=None)
     logger.info(f"Data loaded: {len(data)} rows")
     
     # Preprocess with optimized parameters
-    result = preprocess_data_optimized(data, sequence_length=24, target_steps=1)
+    result = preprocess_data_optimized(data, sequence_length=24, target_steps=24*2)
     if result[0] is None:
         logger.error("Preprocessing failed")
         return
@@ -254,15 +269,26 @@ def run_crypto_prediction(symbol, interval='1h', start_date=None, end_date=None)
             'n_samples': len(y_true_rescaled)
         }
         metrics_json = json.dumps(metrics)
-        
-        utc_now = datetime.datetime.utcnow()
+        target_steps=24*2
+        sequence_length=24
+        timestamps = data['timestamp'].iloc[sequence_length + target_steps - 1:].reset_index(drop=True)
+        actual_timestamps = timestamps.iloc[:len(y_true_rescaled)]
+        actual_timestamps_json = json.dumps(actual_timestamps.dt.strftime('%Y-%m-%d %H:%M:%S').tolist())
+        prediction_timestamps = timestamps + pd.Timedelta(hours=target_steps)
+        prediction_timestamps_json = json.dumps(prediction_timestamps.dt.strftime('%Y-%m-%d %H:%M:%S').tolist())
+
+        utc_now = datetime.datetime.now(timezone.utc)
 
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO predictions (symbol, interval, predictions, actuals, timestamp, metrics)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (symbol.replace("USDT",""), interval, predictions_json, actuals_json, utc_now, metrics_json))
+            INSERT INTO predictions (symbol, interval, predictions, actuals, prediction_timestamps, timestamps, timestamp, metrics)
+            VALUES (?, ?, ?, ?, ?, ?, ?,?)
+        ''', (
+            symbol.replace("USDT", ""), interval,
+            predictions_json, actuals_json,
+            prediction_timestamps_json,actual_timestamps_json, utc_now, metrics_json
+        ))
         conn.commit()
         logger.info(f"Predictions for {symbol} ({interval}) saved successfully.")
 

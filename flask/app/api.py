@@ -139,7 +139,7 @@ def get_predictions(symbol):
         interval = request.args.get('interval', None)
         
         query = """
-            SELECT symbol, interval, predictions, actuals, timestamp 
+            SELECT symbol, interval, predictions, actuals, prediction_timestamps,timestamps, timestamp
             FROM predictions 
             WHERE symbol = ? 
         """
@@ -148,19 +148,39 @@ def get_predictions(symbol):
         if interval:
             query += " AND interval = ? "
             params.append(interval)
-        
+
         query += " ORDER BY timestamp DESC LIMIT 1"
-        
+
         cursor.execute(query, tuple(params))
         prediction_row = cursor.fetchone()
 
         if prediction_row:
             prediction_data = dict(prediction_row)
+
             prediction_data['predictions'] = json.loads(prediction_data['predictions'])
             prediction_data['actuals'] = json.loads(prediction_data['actuals'])
+
+            # Load combined timestamps
+            if 'timestamps' in prediction_data:
+                full_timestamps = json.loads(prediction_data['timestamps'])
+
+                len_actuals = len(prediction_data['actuals'])
+                len_predictions = len(prediction_data['predictions'])
+
+                prediction_data['actual_timestamps'] = full_timestamps[:len_actuals]
+                prediction_data['prediction_timestamps'] = json.loads(prediction_data['prediction_timestamps'])[:len_predictions]
+
+                # Remove raw 'timestamps' field to avoid sending redundant data
+                del prediction_data['timestamps']
+            else:
+                prediction_data['actual_timestamps'] = []
+                prediction_data['prediction_timestamps'] = []
+
             return jsonify(prediction_data)
         else:
             return jsonify({'message': 'No prediction available yet.'}), 404
+
+
 
     except Exception as e:
         # Note: Current logic does not refund token if error occurs after deduction.
