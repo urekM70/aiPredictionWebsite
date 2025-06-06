@@ -88,14 +88,7 @@ def init_db():
     conn.close()
 
 
-# def insert_market_data(db_connection, data_list):
-#     """Vstavi podatke v tabelo market_data, ignorira duplikate."""
-#     cursor = db_connection.cursor()
-#     cursor.executemany('''
-#         INSERT OR IGNORE INTO market_data (symbol, timestamp, open, high, low, close, volume)
-#         VALUES (:symbol, :timestamp, :open, :high, :low, :close, :volume)
-#     ''', data_list)
-#     db_connection.commit()
+
 
 def create_admin_user(bcrypt):
     """Ustvari admin uporabnika, če še ne obstaja."""

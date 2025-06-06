@@ -4,7 +4,7 @@ import os
 from .db import get_db
 from .decorators import login_required, admin_required
 
-cryptos = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "XRPUSDT"]
+cryptos = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "XRPUSDT","LTCUSDT"]
 stocks = ["AAPL", "GOOG", "MSFT", "AMZN", "TSLA"]
 
 def setup_routes(app):

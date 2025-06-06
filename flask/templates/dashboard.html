@@ -61,8 +61,8 @@
         let currentUserTokenBalance = {{ token_balance | default(0) }};
         const currentUserIsPremium = {{ is_premium | default(false) | tojson }};
 
-        const supportedCryptos = ["BTC", "ETH", "SOL", "ADA","XRP"];
-        const supportedStocks = ["AAPL", "GOOG", "MSFT"];
+        const supportedCryptos = ["BTC", "ETH","LTC", "SOL", "ADA","XRP"];
+        const supportedStocks = ["AAPL", "GOOG", "MSFT", "AMZN", "TSLA"];
         const cryptoContainer = document.getElementById('crypto-predictions-body');
         const stockContainer = document.getElementById('stock-predictions-body');
 

@@ -1,5 +1,8 @@
 from celery import Celery
 from celery.schedules import crontab
+
+
+
 celery_app = Celery('flask_app')
 
 
@@ -19,14 +22,10 @@ def make_celery(app):
     celery.Task = ContextTask
     return celery
 
-
-
 # Celery Beat Schedule
 # This will configure Celery Beat to run tasks at specified intervals.
 # Make sure your Celery Beat service is running for these schedules to take effect.
 
-from celery.schedules import crontab
-from celery.schedules import crontab
 
 celery_app.conf.beat_schedule = {
     # --- CRYPTO (hourly) ---

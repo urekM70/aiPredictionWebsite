@@ -4,16 +4,12 @@ from app.db import get_db
 from app import cache
 import requests
 import yfinance as yf
-from tasks.core import test_task, train_model_task
+from tasks.core import train_model_task
 import json
-from datetime import datetime
+
 
 api_bp = Blueprint('api', __name__)
 
-# --- Celery test task ---
-@api_bp.route('/api/test-task/<crypto>')
-def test_route(crypto):
-    pass
 
 # --- Trigger Celery train_model_task ---
 @api_bp.route('/api/train/<crypto>', methods=['POST'])

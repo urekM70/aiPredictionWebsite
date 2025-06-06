@@ -9,7 +9,7 @@
             <div class="list-group">
                 {% for crypto in cryptos %}
                 <a href="{{ url_for('graph', symbol=crypto) }}" class="list-group-item list-group-item-action">
-                    {{ crypto|capitalize }} Graph
+                    {{ crypto.replace("USDT","") }} Graph
                 </a>
                 {% endfor %}
             </div>

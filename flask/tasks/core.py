@@ -7,12 +7,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name='test_task')
-def test_task(crypto):
-    run_crypto_prediction(crypto)
-    return "Task OK"
-
-
 def check_data_exists(symbol: str, interval: str = '1h') -> bool:
     base_name = symbol.upper().replace('USDT', '')
     data_dir = 'marketdata'
