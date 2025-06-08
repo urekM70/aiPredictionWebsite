@@ -11,3 +11,6 @@ flask/tasks/_pycache_
 logs/
 start.sh
 flask/db.sqlite
+flask/celerybeat-scedule
+# Ignore Python cache files
+*.py[cod]
