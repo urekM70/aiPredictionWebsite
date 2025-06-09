@@ -14,3 +14,4 @@ flask/db.sqlite
 flask/celerybeat-scedule
 # Ignore Python cache files
 *.py[cod]
+flask/logs

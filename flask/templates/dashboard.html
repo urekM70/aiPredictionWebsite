@@ -35,10 +35,13 @@
             <div class="card-header">
                 <h5>Crypto Predictions</h5>
             </div>
+            
             <div class="card-body" id="crypto-predictions-body">
                 <p>Loading predictions...</p>
             </div>
+            
         </div>
+        
     </div>
 
     <!-- Stocks -->
@@ -49,6 +52,7 @@
             </div>
             <div class="card-body" id="stock-predictions-body">
                 <p>Loading predictions...</p>
+                <button id="predictBtn" class="btn btn-warning" style="margin-left: 10px;">Generate Prediction</button>
             </div>
         </div>
     </div>
@@ -56,6 +60,7 @@
 
 <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
 <script>
+
     document.addEventListener('DOMContentLoaded', function() {
         const tokenBalanceElement = document.getElementById('user-token-balance');
         let currentUserTokenBalance = {{ token_balance | default(0) }};

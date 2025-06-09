@@ -27,7 +27,6 @@ def create_app():
     # Celery setup
     global celery_app
     celery_instance.celery_app = make_celery(app)
-    from tasks import data_tasks
     # Registracija route-ov in API endpointov
     from .routes import setup_routes
     from .api import api_bp

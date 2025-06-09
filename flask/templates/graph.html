@@ -59,6 +59,8 @@
   </style>
 </head>
 <body>
+<p>Your Token Balance: <strong id="user-token-balance">{{ token_balance | default('N/A') }}</strong></p>
+
   <header>
     <h1>{{ crypto|upper }}</h1>
     <div class="controls">
@@ -103,12 +105,15 @@
   <!-- Add inside <header> -->
 <button id="predictBtn" class="btn btn-warning" style="margin-left: 10px;">Generate Prediction</button>
 <script>
+    let tokenBalanceElement = document.getElementById('user-token-balance');
+
 document.getElementById("predictBtn").addEventListener("click", async () => {
   try {
     const cryptoSymbol = symbol.replace("USDT", "");  // remove USDT
     const res = await fetch(`/api/train/${cryptoSymbol}`, { method: "POST" });
     if (res.ok) {
       const data = await res.json();
+      document.getElementById("user-token-balance").innerHTML=tokenBalanceElement.innerHTML - 1; // Deduct one token
       alert(`Prediction task started.\nTask ID: ${data.task_id}`);
     } else {
       const err = await res.json();

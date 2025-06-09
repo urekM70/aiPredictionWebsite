@@ -15,6 +15,32 @@ api_bp = Blueprint('api', __name__)
 @api_bp.route('/api/train/<crypto>', methods=['POST'])
 @login_required
 def trigger_training(crypto):
+    conn = None
+    conn = get_db()
+    cursor = conn.cursor()
+    # Get current user's details (is_premium, token_balance)
+    cursor.execute("SELECT is_premium, token_balance FROM users WHERE username = ?", (session['username'],))
+    user = cursor.fetchone()
+
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    user_is_premium = user['is_premium'] == 1
+    user_token_balance = user['token_balance']
+
+        # Authorization logic
+    can_access = False
+        # token_deducted_this_request = False # Original position, moved up
+    if user_is_premium:
+        can_access = True
+    elif user_token_balance > 0:
+        can_access = True
+            # Deduct token
+        cursor.execute("UPDATE users SET token_balance = token_balance - 1 WHERE username = ?", (session['username'],))
+        conn.commit() 
+        
+        if not can_access:
+            return jsonify({'error': 'Upgrade required or insufficient tokens.'}), 403
     task = train_model_task.delay(crypto)
     return jsonify({'status': f'Training started for {crypto}', 'task_id': task.id})
 
@@ -70,9 +96,9 @@ def stock_ohlcv(symbol):
     return jsonify(data)
 
 # --- Local Market Data OHLCV ---
-@api_bp.route('/api/local/ohlcv/<string:symbol>', methods=['GET'])
-@login_required 
-def get_local_ohlcv(symbol):
+#@api_bp.route('/api/local/ohlcv/<string:symbol>', methods=['GET'])
+#@login_required 
+#def get_local_ohlcv(symbol):
     """
     Fetches stored OHLCV data for a given symbol from the local database.
     """
@@ -105,35 +131,10 @@ def get_predictions(symbol):
     symbol = symbol.upper().replace("USDT", "")  # Ensure symbol is uppercase
 
     conn = None
-    token_deducted_this_request = False # Moved initialization here
+    conn = get_db()
+    cursor = conn.cursor()
     try:
-        conn = get_db()
-        cursor = conn.cursor()
 
-        # Get current user's details (is_premium, token_balance)
-        cursor.execute("SELECT is_premium, token_balance FROM users WHERE username = ?", (session['username'],))
-        user = cursor.fetchone()
-
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-
-        user_is_premium = user['is_premium'] == 1
-        user_token_balance = user['token_balance']
-
-        # Authorization logic
-        can_access = False
-        # token_deducted_this_request = False # Original position, moved up
-        if user_is_premium:
-            can_access = True
-        elif user_token_balance > 0:
-            can_access = True
-            # Deduct token
-            cursor.execute("UPDATE users SET token_balance = token_balance - 1 WHERE username = ?", (session['username'],))
-            conn.commit() 
-            token_deducted_this_request = True
-        
-        if not can_access:
-            return jsonify({'error': 'Upgrade required or insufficient tokens.'}), 403
 
         # Fetch prediction
         interval = request.args.get('interval', None)
@@ -163,10 +164,6 @@ def get_predictions(symbol):
             return jsonify({'message': 'No prediction available yet.'}), 404
 
     except Exception as e:
-        # Note: Current logic does not refund token if error occurs after deduction.
-        # This is per current understanding of "deduct per API call".
-        # If a refund is needed on error post-deduction, more complex transaction handling
-        # or moving deduction after successful fetch would be required.
         return jsonify({'error': str(e)}), 500
     finally:
         if conn:

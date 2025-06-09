@@ -44,7 +44,25 @@ def setup_routes(app):
     @login_required
     def graph(symbol):
         if symbol.upper() in cryptos or symbol.upper() in stocks:
-            return render_template('graph.html', crypto=symbol.upper())
+            conn = None
+        token_balance = 0  # Default value
+        is_premium = False # Default value
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT token_balance, is_premium FROM users WHERE username = ?", (session['username'],))
+            user = cursor.fetchone()
+            if user:
+                token_balance = user['token_balance']
+                is_premium = user['is_premium'] == 1 # Convert DB integer to boolean
+        except Exception as e:
+            # Log error if necessary, for now use defaults
+            print(f"Error fetching user details for dashboard: {e}") # Consider proper logging
+        finally:
+            if conn:
+                conn.close()
+
+            return render_template('graph.html', crypto=symbol.upper(),token_balance=token_balance, is_premium=is_premium)
         abort(404)
 
     @app.route('/community')
